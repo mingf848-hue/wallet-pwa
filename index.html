@@ -63,14 +63,18 @@
       // ==========================================
       // === 新增：核心防拖拽代码 (Rubber Band Fix) ===
       // ==========================================
+      // ==========================================
+      // === 修复版：防拖拽代码 (支持横向滑动) ===
+      // ==========================================
       document.addEventListener('touchmove', function(e) {
-          const scrollableEl = e.target.closest('.overflow-y-auto');
+          // 1. 查找最近的可滚动容器 (支持垂直和水平)
+          const scrollableEl = e.target.closest('.overflow-y-auto, .overflow-x-auto, .overflow-auto');
 
+          // 2. 如果手指没有摸在可滚动区域内，直接禁止 (防止整个页面被拖动)
           if (!scrollableEl) {
               e.preventDefault();
           } else {
-              const isAtTop = scrollableEl.scrollTop <= 0;
-              const isAtBottom = scrollableEl.scrollTop + scrollableEl.clientHeight >= scrollableEl.scrollHeight;
+              // 3. 如果在可滚动区域内，允许滑动，阻止冒泡以防止触发底层的禁止
               e.stopPropagation(); 
           }
       }, { passive: false });
