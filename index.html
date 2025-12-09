@@ -880,7 +880,7 @@
             }, 100); 
         };
 
-       window.openTransactionModal = (txId, dx = 0, dy = 100) => {
+window.openTransactionModal = (txId, dx = 0, dy = 100) => {
             const tx = state.transactions.find(t => t.id === txId);
             if(!tx) return;
             selectedTxId = txId;
@@ -906,16 +906,20 @@
                 catIconClass = "fa-wrench";
             }
 
+            // --- 新增：商户显示逻辑 ---
+            const merchantName = tx.merchant || "未知商户"; // 获取新字段
+            let merchantIcon = "fa-store"; // 默认店铺图标
+            
+            // 简单的图标匹配
+            if (merchantName.includes("拼多多")) merchantIcon = "fa-bag-shopping"; 
+            else if (merchantName.includes("淘宝")) merchantIcon = "fa-shirt";
+            else if (merchantName.includes("美团") || merchantName.includes("饿了么")) merchantIcon = "fa-utensils";
+            else if (merchantName.includes("滴滴")) merchantIcon = "fa-car";
+
             // --- 2. 准备数据变量 ---
-            // 符号
             const signChar = tx.type === 'expense' ? '-' : '+';
-            
-            // 颜色类名 (复用)
             const colorClass = tx.type === 'expense' ? 'text-crypto-down' : (tx.type === 'income' ? 'text-crypto-up' : 'text-white');
-            
-            // 纯数字部分 (不含符号)
             let rawAmountStr = tx.amount.toFixed(2);
-            // 针对 Bitget 等高精度处理
             if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
                  rawAmountStr = parseFloat(tx.amount.toFixed(8)).toString();
             }
@@ -938,15 +942,12 @@
                     </div>
                     
                     <div class="relative inline-flex items-baseline justify-center">
-                        
                         <span id="tx-modal-sign" class="absolute right-full mr-1 text-4xl font-mono font-bold tracking-tight text-shadow ${colorClass}">
                             ${signChar}
                         </span>
-
                         <span id="tx-modal-amount-val" class="text-4xl font-mono font-bold tracking-tight text-shadow z-10 ${colorClass}">
                             ${rawAmountStr}
                         </span>
-                        
                         <span id="tx-modal-currency" class="absolute left-full ml-2 bottom-1 text-sm font-bold text-crypto-subtext whitespace-nowrap">
                             ${tx.currency}
                         </span>
@@ -958,6 +959,16 @@
                 </div>
 
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-1 mb-6 relative z-10 w-full">
+                    <div class="flex justify-between items-center p-3 border-b border-white/5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-crypto-gold">
+                                <i class="fa-solid ${merchantIcon} text-xs"></i>
+                            </div>
+                            <span class="text-sm text-gray-300">商户</span>
+                        </div>
+                        <span class="text-sm font-bold text-white">${merchantName}</span>
+                    </div>
+
                     <div class="flex justify-between items-center p-3 border-b border-white/5">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-crypto-primary">
