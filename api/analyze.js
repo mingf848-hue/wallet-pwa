@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
 
-// 1. Firebase 配置
+// 1. Firebase 配置 (保持不变)
 const firebaseConfig = {
   apiKey: "AIzaSyAMq8_hpoVSP5ULfou1w4psq94d5bEjCIY",
   authDomain: "wallet-ff0d5.firebaseapp.com",
@@ -23,25 +23,25 @@ export default async function handler(req, res) {
     const { imageBase64 } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
-    // --- A. 构造 Prompt ---
-    // 我把 prompt 里的 date 去掉了，因为我们不再需要 AI 猜时间
+    // --- A. 升级版 Prompt：专门识别平台商户 ---
     const systemPrompt = `
       你是一个专业的会计助手。请分析这张支付截图。
       请精准提取以下信息并以纯 JSON 格式返回：
       
       1. amount: 实付金额（数字，不要符号）。
-      2. merchant: 店铺名称或收款方。
-      3. product_name: 【重要】商品标题或交易描述。
-         - 如果是电商，提取具体的商品长标题。
-         - 如果是线下支付，提取商品名或商户名。
-      4. platform: 支付方式（WeChat, Alipay, UnionPay, Unknown）。
+      2. merchant: 【核心】交易平台或商户名称。
+         - 规则：如果截图明显来自"拼多多"、"淘宝"、"京东"、"美团"、"饿了么"、"滴滴"等知名App，请直接填平台名称（例如 "拼多多"）。
+         - 如果不是知名平台，则提取具体的店铺名（例如 "全家便利店"）。
+      3. product_name: 商品标题或交易描述（例如 "女士内裤..."）。
+      4. date: 交易时间（格式 YYYY-MM-DD HH:mm:ss）。
+      5. platform: 支付方式（WeChat, Alipay, UnionPay, Unknown）。
       
       返回格式示例：
-      {"amount": 4.89, "merchant": "百姿千魅", "product_name": "女士内裤透明...", "platform": "WeChat"}
+      {"amount": 4.89, "merchant": "拼多多", "product_name": "女士内裤透明...", "platform": "WeChat"}
       不要使用 Markdown，直接返回 JSON。
     `;
 
-    // --- B. 调用你的 Cloudflare 代理 ---
+    // --- B. 调用代理 (保持不变) ---
     const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/v1beta/models/gemini-1.5-flash:generateContent";
     
     const payload = {
@@ -59,25 +59,16 @@ export default async function handler(req, res) {
       body: JSON.stringify(payload)
     });
 
-    if (!aiRes.ok) {
-        const errText = await aiRes.text();
-        throw new Error(`AI Request Failed: ${aiRes.status} - ${errText}`);
-    }
-
+    if (!aiRes.ok) throw new Error("AI Request Failed");
     const aiData = await aiRes.json();
-    
-    // 解析数据
     const rawText = aiData.candidates[0].content.parts[0].text;
     const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     
     let data;
-    try {
-        data = JSON.parse(cleanJson);
-    } catch (e) {
-        data = { amount: 0, merchant: "未知", product_name: "识别失败", platform: "Unknown" };
-    }
+    try { data = JSON.parse(cleanJson); } 
+    catch (e) { data = { amount: 0, merchant: "未知", product_name: "识别失败", platform: "Unknown" }; }
 
-    // --- C. 保存到 Firebase ---
+    // --- C. 保存到 Firebase (新增 merchant 字段) ---
     await signInAnonymously(auth);
     const docRef = doc(db, 'bitledger_storage', 'my_personal_wallet_v2');
     const docSnap = await getDoc(docRef);
@@ -87,14 +78,13 @@ export default async function handler(req, res) {
         transactions: []
     };
 
-    // 智能匹配账户
     let targetAcc = null;
     if (data.platform === 'Alipay') targetAcc = currentState.accounts.find(a => a.name.includes('支付宝') || a.id.includes('alipay'));
     else if (data.platform === 'WeChat') targetAcc = currentState.accounts.find(a => a.name.includes('微信') || a.id.includes('wechat'));
     if (!targetAcc) targetAcc = currentState.accounts[0];
 
-    // 备注
-    const finalNote = data.product_name && data.product_name.length > 1 ? data.product_name : data.merchant;
+    // 如果 AI 没提取到商品名，就用商户名顶替，防止备注为空
+    const finalNote = data.product_name && data.product_name.length > 1 ? data.product_name : "商品/服务";
 
     const newTx = {
       id: Date.now(),
@@ -103,12 +93,12 @@ export default async function handler(req, res) {
       currency: targetAcc.currency || 'CNY',
       accountId: targetAcc.id,
       category: 'shop', 
+      date: new Date().toISOString(), // 使用当前服务器时间
       
-      // 【核心修改】这里直接用 new Date()，即“当前服务器接收到请求的时间”
-      // 这样记账时间就是你双击手机的那一秒，绝对准确。
-      date: new Date().toISOString(), 
+      // 【新增】把商户名单独存起来！
+      merchant: data.merchant, 
       
-      note: finalNote 
+      note: finalNote
     };
 
     // 扣余额
@@ -120,7 +110,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ 
         success: true, 
-        message: `✅ 已记账: -${newTx.amount}\n📝 ${finalNote.substring(0, 15)}...` 
+        message: `✅ 已记账: -${newTx.amount}\n🏠 商户: ${data.merchant}\n📝 ${finalNote.substring(0, 10)}...` 
     });
 
   } catch (error) {
