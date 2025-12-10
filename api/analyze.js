@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-// Vercel 稳定导入
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
 
@@ -20,41 +19,43 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    // ★★★ 核心：接收 iPhone 传来的时间 ★★★
+    // ★★★ 接收 iPhone 传来的时间 ★★★
     const { imageBase64, manualPlatform, transactionTime } = req.body; 
-    
-    if (!imageBase64 || !transactionTime) {
-      return res.status(400).json({ error: '缺少图片或交易时间(transactionTime)。' });
-    }
+    if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
-    // iPhone 传来的时间作为所有交易的唯一基准
-    const iphoneBaseTime = new Date(transactionTime); 
+    const currentYear = new Date().getFullYear();
+    const iphoneTime = transactionTime ? new Date(transactionTime) : new Date(); // iPhone/服务器时间作为后备
 
-    // --- A. Prompt: 完整人设 + 明确禁止提取日期 ---
+    // --- A. Prompt: 保持人设，并要求 AI 提取日期 ---
     const systemPrompt = `
-      你是一个经验丰富、极其严谨的私人财务助理。请分析这张截图，提取交易数据并返回 JSON 数组。
+      你是一个经验丰富、极其严谨的私人财务助理。你的任务是精准分析支付截图，提取交易数据。
 
-      【第一步：判断图片类型】
-      场景 1：单笔订单详情页 (特征：底部有"实付"、"合计"或"确认交易"按钮)
-      - **规则**：只返回 1 条汇总记录。金额取底部实付。商品名拼接。
+      【核心任务与人设】
       
-      场景 2：账单列表页 (特征：多行独立交易)
-      - **规则**：返回多条记录。提取每一行的金额和商户。
-
-      【第二步：数据清洗 (核心人设)】
       1. **product_name (备注)**：
-         - 电商长标题请务必【智能精简】(例如将 "夏季爆款冰丝无痕大码女内裤防走光" 精简为 "冰丝无痕内裤")。
+         - **智能精简**：对于电商长标题，请务必【提炼核心商品名】。
+         - 例如：将 "夏季爆款冰丝无痕大码女内裤防走光" 精简为 "冰丝无痕内裤"。
          - 去除："包邮"、"网红"、"显瘦" 等营销词汇。
-      2. **merchant (商户)**：提取店铺名。
-      3. **platform (平台)**：根据界面颜色判断 (绿色=WeChat, 蓝色=Alipay, 红色/银联=UnionPay)。
-      4. **category (分类)**：从 food (餐饮), shop (购物), transport (交通), home (居住), fun (娱乐), other (其他) 中选一个最准确的。
       
-      **【重要】：绝对不要提取日期！不要返回 date 字段！所有交易时间将由外部提供。**
+      2. **category (分类)**：
+         - 从 food, shop, transport, home, fun, other 中选一个最准确的。
+      
+      3. **platform (平台)**：
+         - 根据界面颜色判断 (绿色=WeChat, 蓝色=Alipay, 红色/银联=UnionPay)。
+
+      4. **date (日期)**：
+         - **请务必从截图里提取日期和时间 (YYYY-MM-DD HH:mm:ss)**。如果截图里没有年份，默认 ${currentYear}。
+         - 如果是列表，下方的交易必须继承上方最近的日期头。
+
+      【判断与规则】
+      
+      类型 A：单笔订单详情页 -> 只返回 1 条汇总记录。
+      类型 B：账单列表页 -> 返回多条记录。
 
       返回 JSON 示例：
       [
-        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "生菜, 瓜子, 可乐...", "category": "food", "platform": "WeChat"},
-        {"amount": 4.89, "type": "expense", "merchant": "拼多多", "product_name": "透明女士内裤", "category": "shop", "platform": "Alipay"}
+        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "生菜, 瓜子, 可乐...", "category": "food", "platform": "WeChat", "date": "2025-12-10 18:00:00"},
+        {"amount": 4.89, "type": "expense", "merchant": "拼多多", "product_name": "透明女士内裤", "category": "shop", "platform": "Alipay", "date": "2025-12-10 14:00:00"}
       ]
       不要使用 Markdown，直接返回纯 JSON 字符串。
     `;
@@ -100,16 +101,17 @@ export default async function handler(req, res) {
     };
 
     let successMsg = [];
+    
+    // 我们仍然使用倒序偏移，确保批量记账时列表顺序正确
     let timeOffset = 0; 
-
-    // --- C. 核心逻辑：账户匹配 & 纯 iPhone 时间设置 ---
+    
+    // --- C. 核心逻辑：账户匹配 & 时间优先级 ---
     for (const item of items) {
         // 1. 账户匹配 (略)
         let targetAcc = null;
         if (manualPlatform && manualPlatform !== '自动识别') {
             const choice = manualPlatform.toLowerCase();
             targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes(choice) || a.id.toLowerCase().includes(choice));
-            
             if (!targetAcc) {
                 if (manualPlatform.includes('微信')) targetAcc = currentState.accounts.find(a => a.id.includes('wechat'));
                 if (manualPlatform.includes('支付宝')) targetAcc = currentState.accounts.find(a => a.id.includes('alipay'));
@@ -135,15 +137,27 @@ export default async function handler(req, res) {
 
         const finalNote = item.product_name && item.product_name.length > 1 ? item.product_name : item.merchant;
         
-        // ★★★ 核心：只使用 iPhone 传来的时间作为基准 ★★★
-        let finalTxDate = new Date(iphoneBaseTime); 
+        // ★★★ 核心逻辑：时间优先级判断 ★★★
+        let finalTxDate = new Date(iphoneTime); // 默认使用 iPhone 传来的时间
         
-        // 批量记账时，对时间戳进行倒序微调 (减法) 以保证顺序正确
+        if (item.date) {
+            // 尝试解析 AI 提供的日期
+            let aiParsedDate = new Date(item.date);
+            const currentMonth = new Date().getMonth(); 
+            const isSuspiciousJan1 = aiParsedDate.getMonth() === 0 && aiParsedDate.getDate() === 1 && currentMonth > 1;
+
+            // 只有当 AI 提供的日期【有效】且【年份靠谱】且【不是可疑的 1月1日】时，才采用
+            if (!isNaN(aiParsedDate.getTime()) && aiParsedDate.getFullYear() >= 2024 && !isSuspiciousJan1) {
+                 finalTxDate = aiParsedDate; 
+            }
+            // 否则，保持使用 iPhone 传来的时间 (finalTxDate = new Date(iphoneTime))
+        }
+
+        // 批量记账时，对时间戳进行倒序微调 (减法)
         finalTxDate.setMilliseconds(finalTxDate.getMilliseconds() - timeOffset);
         timeOffset += 100;
 
         const newTx = {
-            // ID生成依然使用 Date.now() 保证唯一性
             id: Date.now() - timeOffset + Math.random(), 
             type: item.type || 'expense',
             amount: parseFloat(item.amount),
@@ -151,7 +165,7 @@ export default async function handler(req, res) {
             accountId: targetAcc.id,
             category: item.category || 'other', 
             
-            date: finalTxDate.toISOString(), // 100% 来源于快捷指令
+            date: finalTxDate.toISOString(), // 使用优先级最高的时间
             
             merchant: item.merchant, 
             note: finalNote
@@ -167,7 +181,6 @@ export default async function handler(req, res) {
         successMsg.push(`${item.merchant} ${newTx.type==='income'?'+':'-'}${newTx.amount}`);
     }
 
-    // 数据库更新时间 (不影响账单时间)
     await setDoc(docRef, { state: currentState, updatedAt: new Date() });
 
     let displayMsg = successMsg.slice(0, 3).join('\n');
