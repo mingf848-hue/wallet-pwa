@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V11.6 (Fixes & DatePicker)</title>
+    <title>BitLedger Pro V12.1 (High-End Date Picker)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -200,7 +200,7 @@
         }
 
         /* Custom Date Picker Styles */
-        #custom-date-picker {
+        #custom-date-picker, #date-range-picker-modal .modular-panel {
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             will-change: transform;
         }
@@ -229,6 +229,28 @@
         }
         .calendar-day:active:not(.active) {
             background-color: rgba(255,255,255,0.1);
+        }
+        
+        /* New Picker Specific Styles */
+        #year-list, #month-list {
+            /* 确保父容器 h-full/h-48, overflow-hidden */
+            position: absolute;
+            left: 0;
+            right: 0;
+            /* 移除滚动条 */
+            overflow: hidden !important; 
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            /* 激活滑动硬件加速 */
+            will-change: transform;
+        }
+        /* 隐藏滚动条但保留滑动功能 */
+        #year-list::-webkit-scrollbar, #month-list::-webkit-scrollbar { display: none; }
+        
+        /* Mask Gradient for Smooth Fade */
+        .mask-gradient {
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
         }
         
     </style>
@@ -378,16 +400,15 @@
                 
                 <!-- BILLS VIEW -->
                 <div id="view-bills" class="tab-content active px-5 pt-4">
-                    <!-- Date Filter & Monthly Summary -->
+                    <!-- Date Filter (Custom Swipe Picker Trigger) & Monthly Summary -->
                     <div class="mb-6">
                         <div class="flex items-center gap-2 mb-4 relative">
-                            <div class="relative bg-crypto-card border border-crypto-border rounded-lg px-3 py-1.5 flex items-center gap-2">
+                            <!-- NEW CUSTOM MONTH/YEAR SELECT BUTTON -->
+                            <button id="date-range-display-btn" onclick="window.openDateRangePicker()" class="relative bg-crypto-card border border-crypto-border rounded-lg px-3 py-1.5 flex items-center gap-2 active:scale-95 transition-transform hover:bg-crypto-hover">
                                 <i class="fa-regular fa-calendar text-crypto-primary text-xs"></i>
-                                <select id="month-selector" onchange="window.handleDateChange()" class="date-select text-sm font-bold text-white outline-none z-10 relative pr-4">
-                                    <!-- Options populated by JS -->
-                                </select>
-                                <i class="fa-solid fa-caret-down absolute right-2 text-[10px] text-crypto-subtext"></i>
-                            </div>
+                                <span id="date-range-display" class="text-sm font-bold text-white outline-none z-10 relative">2023年10月</span>
+                                <i class="fa-solid fa-caret-down text-[10px] text-crypto-subtext"></i>
+                            </button>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
@@ -652,7 +673,7 @@
             </div>
         </div>
 
-        <!-- Custom Date Picker Bottom Sheet -->
+        <!-- Custom Date Picker Bottom Sheet (Used in Add Modal) -->
         <div id="custom-date-picker" class="fixed bottom-0 left-0 w-full bg-crypto-card border-t border-crypto-border z-[200] hidden-picker pb-6 shadow-2xl rounded-t-2xl">
             <div class="flex justify-between items-center px-4 py-3 border-b border-crypto-border bg-crypto-bg/50 rounded-t-2xl">
                 <div class="flex items-center gap-4">
@@ -679,6 +700,49 @@
             </div>
         </div>
 
+        <!-- NEW: Date Range Picker Modal (Swipeable Year/Month) - UPDATED DESIGN -->
+        <div id="date-range-picker-modal" class="fixed inset-0 z-[250] hidden flex-col justify-end">
+            <div class="absolute inset-0 modal-backdrop" onclick="window.closeDateRangePicker()"></div>
+            <!-- Added rounded-2xl to all corners, margin bottom, shadow -->
+            <div class="modular-panel w-full max-w-sm mx-auto rounded-2xl animate-slide-up relative z-10 mb-8 overflow-hidden shadow-2xl border border-white/10 bg-[#161b22]">
+                <!-- Removed border-b, made simpler -->
+                <div class="flex justify-between items-center p-4 bg-transparent relative z-20">
+                    <h3 class="text-base font-bold text-gray-400 pl-2">选择月份</h3>
+                    <button onclick="window.confirmDateRangePicker()" class="text-crypto-primary text-sm font-bold px-4 py-1.5 bg-crypto-primary/10 rounded-lg active:scale-95 transition-transform">确定</button>
+                </div>
+                
+                <!-- Swipeable Year/Month Picker Container -->
+                <div class="flex relative h-56 w-full"> <!-- Increased height -->
+                    
+                    <!-- Selection Highlight (The "Glass" Bar) - Centered absolutely -->
+                    <div class="absolute top-1/2 left-4 right-4 -translate-y-1/2 h-12 bg-white/5 rounded-xl pointer-events-none z-0 border border-white/5"></div>
+                    
+                    <!-- Year Picker -->
+                    <div class="flex-1 h-full overflow-hidden relative z-10 mask-gradient">
+                        <div id="year-list" class="absolute inset-x-0 top-0 will-change-transform" 
+                             data-scroll-state="year"
+                             ontouchstart="window.startScroll(event, 'year')"
+                             ontouchmove="window.moveScroll(event, 'year')"
+                             ontouchend="window.endScroll(event, 'year')">
+                            <!-- Year items injected by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Month Picker -->
+                    <div class="flex-1 h-full overflow-hidden relative z-10 mask-gradient">
+                        <div id="month-list" class="absolute inset-x-0 top-0 will-change-transform"
+                             data-scroll-state="month"
+                             ontouchstart="window.startScroll(event, 'month')"
+                             ontouchmove="window.moveScroll(event, 'month')"
+                             ontouchend="window.endScroll(event, 'month')">
+                            <!-- Month items injected by JS -->
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
@@ -698,13 +762,23 @@
         let currentTab = 'bills'; 
         const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2'; 
 
-        // Filter State
+        // Filter State (Also used as the main Date Range Picker State)
         let currentYear = new Date().getFullYear();
         let currentMonth = new Date().getMonth(); // 0-11
         
-        // Picker State
+        // Picker State (for the calendar grid, used in Add Transaction Modal)
         let pickerYear = new Date().getFullYear();
         let pickerMonth = new Date().getMonth();
+
+        // New Swipe Picker State & Config
+        const SCROLL_ITEM_HEIGHT = 48; // Updated to match the new H-12 (48px)
+        const SCROLL_CONTAINER_HEIGHT = 224; // h-56 = 224px
+        const MAX_YEARS_BACK = 10; // Year range: current year - 10
+        const MAX_YEARS_FORWARD = 0;
+        let tempPickerYear = currentYear;
+        let tempPickerMonth = currentMonth;
+        let scrollTouchState = { startY: 0, currentY: 0, startTransformY: 0, isDragging: false, target: null };
+
 
         let isRemoteDataLoaded = false;
         let activeKeypadInputId = null;
@@ -798,7 +872,7 @@
 
         async function init() {
             loadFromCache();
-            populateDateSelector();
+            populateDateSelector(); // Initial display of the custom button text
             try {
                 const firebaseConfig = {
                   apiKey: "AIzaSyAMq8_hpoVSP5ULfou1w4psq94d5bEjCIY",
@@ -828,30 +902,16 @@
             }
         }
 
+        // Updated function to display the current filter range
         function populateDateSelector() {
-            const sel = document.getElementById('month-selector');
-            if(!sel) return;
-            sel.innerHTML = '';
-            
-            const today = new Date();
-            for (let i = 0; i < 24; i++) {
-                const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-                const year = d.getFullYear();
-                const month = d.getMonth();
-                const opt = document.createElement('option');
-                opt.value = `${year}-${month}`;
-                opt.text = `${year}年${month + 1}月`;
-                opt.className = "bg-crypto-card text-white";
-                if(year === currentYear && month === currentMonth) opt.selected = true;
-                sel.appendChild(opt);
-            }
+            const displayEl = document.getElementById('date-range-display');
+            if(displayEl) displayEl.innerText = `${currentYear}年${currentMonth + 1}月`;
         }
 
         window.handleDateChange = () => {
-            const val = document.getElementById('month-selector').value;
-            const [y, m] = val.split('-');
-            currentYear = parseInt(y);
-            currentMonth = parseInt(m);
+            // This is now handled by window.confirmDateRangePicker()
+            // But if we ever re-introduce the dropdown, this is the placeholder.
+            populateDateSelector();
             renderHome();
         };
 
@@ -1235,12 +1295,15 @@
             document.getElementById('yesterday-earnings').innerText = state.privacyMode ? '****' : `+${totalActualYesterdayCNY.toFixed(2)}`;
             document.getElementById('yesterday-earnings').classList.remove('profit-glow'); 
             document.getElementById('total-earnings').innerText = state.privacyMode ? '****' : `+${allTimeTotal.toFixed(2)}`;
+            
+            // IMPORTANT: Update the top-left filter display after render
+            populateDateSelector();
+
 
             if (currentTab === 'assets') {
                 const grid = document.getElementById('accounts-grid');
-                // 修复闪烁: 如果没有变动，不完全重绘。这里简单通过检查children长度来优化，但为了完全解决闪烁，我们重用元素。
-                // 实际上，资产列表的闪烁主要是因为打开Modal时触发了click事件，而卡片本身有active:scale-95。
-                // 我已经在CSS中把active:scale-95改成较小的缩放或去除，这里保持重绘逻辑不变，因为数据可能变动。
+                // Removed active:scale-95 to fix flicker when opening modal, used active:brightness-110 instead
+                // The re-render logic here remains as it needs to reflect data changes.
                 
                 grid.innerHTML = '';
                 state.accounts.forEach(acc => {
@@ -1261,7 +1324,6 @@
                     else balStr = parseFloat(acc.balance.toFixed(12)).toString();
 
                     const card = document.createElement('div');
-                    // Removed active:scale-95 to fix flicker when opening modal, used active:brightness-110 instead
                     card.className = `relative overflow-hidden rounded-2xl p-4 h-32 shadow-lg transition-transform active:scale-[0.99] cursor-pointer text-white card-sheen w-full`; 
                     card.style.backgroundColor = acc.color;
                     card.onclick = function() { window.openAccountModal(acc.id, this); };
@@ -1599,8 +1661,6 @@
         window.keypadPress = (k) => {
             let cur = temp.amount;
             if (k === 'backspace') { temp.amount = cur.length > 1 ? cur.slice(0, -1) : '0'; }
-            // Replaced default date handler with custom picker open function in HTML
-            // else if (k === 'date') { temp.date = new Date(); showToast('日期重置为今天'); updateAddModalDateDisplay(); }
             else if (['+','-'].includes(k)) { return; }
             else { if (cur === '0' && k !== '.') temp.amount = k; else { if (k === '.' && cur.includes('.')) return; if (cur.includes('.') && cur.split('.')[1].length >= 2) return; if (cur.length > 10) return; temp.amount = cur + k; } }
             document.getElementById('input-amount').innerText = temp.amount;
@@ -1646,7 +1706,7 @@
             }
         };
 
-        // --- Custom Date Picker Logic ---
+        // --- Custom Date Picker Logic (Calendar Grid) ---
         window.openDatePicker = () => {
             const picker = document.getElementById('custom-date-picker');
             picker.classList.remove('hidden-picker');
@@ -1717,6 +1777,241 @@
                 container.appendChild(el);
             }
         }
+        
+        // --- NEW: Custom Date Range Picker (Swipeable Wheel) Logic ---
+
+        window.openDateRangePicker = () => {
+            tempPickerYear = currentYear;
+            tempPickerMonth = currentMonth;
+            const modal = document.getElementById('date-range-picker-modal');
+            modal.classList.remove('hidden'); 
+            modal.classList.add('flex');
+            
+            // Use requestAnimationFrame to ensure modal is rendered before calculating heights
+            requestAnimationFrame(() => {
+                 renderScrollablePicker('year');
+                 renderScrollablePicker('month');
+            });
+        };
+
+        window.closeDateRangePicker = () => {
+            document.getElementById('date-range-picker-modal').classList.add('hidden'); 
+            document.getElementById('date-range-picker-modal').classList.remove('flex');
+        };
+
+        window.confirmDateRangePicker = () => {
+            // Update filter state and re-render Home
+            currentYear = tempPickerYear;
+            currentMonth = tempPickerMonth;
+            populateDateSelector();
+            renderHome();
+            window.closeDateRangePicker();
+        };
+
+
+        function renderScrollablePicker(type) {
+            const containerId = `${type}-list`;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            
+            let startVal, endVal, currentVal, labelFn;
+            
+            if (type === 'year') {
+                const todayYear = new Date().getFullYear();
+                startVal = todayYear - MAX_YEARS_BACK;
+                endVal = todayYear + MAX_YEARS_FORWARD;
+                currentVal = tempPickerYear;
+                labelFn = (val) => `${val}`; // Just the year number
+            } else if (type === 'month') {
+                startVal = 0; // 0 for Jan
+                endVal = 11; // 11 for Dec
+                currentVal = tempPickerMonth;
+                labelFn = (val) => `${val + 1}月`; // 1月 to 12月
+            }
+
+            const totalItems = endVal - startVal + 1;
+            
+            // Use fixed height from constant instead of offsetHeight which can be unstable
+            // SCROLL_CONTAINER_HEIGHT = 224px (h-56)
+            const parentHeight = SCROLL_CONTAINER_HEIGHT; 
+            const centerPaddingItems = Math.floor(parentHeight / SCROLL_ITEM_HEIGHT / 2);
+
+            // 1. Add Padding for Visual Center
+            for (let i = 0; i < centerPaddingItems; i++) {
+                 // Explicit style height to avoid tailwind dynamic class issues
+                 container.innerHTML += `<div style="height: ${SCROLL_ITEM_HEIGHT}px" class="flex items-center justify-center text-lg font-bold opacity-0 pointer-events-none">.</div>`;
+            }
+
+            let selectedIndex = 0;
+            for (let i = startVal; i <= endVal; i++) {
+                const isSelected = i === currentVal;
+                
+                const item = document.createElement('div');
+                item.style.height = `${SCROLL_ITEM_HEIGHT}px`; // Force height via inline style
+                item.className = `flex items-center justify-center text-lg font-bold transition-all duration-300 cursor-pointer transform`;
+                
+                // Typography Design Update
+                if (isSelected) {
+                    item.classList.add('text-white', 'scale-110'); // Highlight style
+                } else {
+                    item.classList.add('text-gray-500', 'scale-90', 'opacity-60'); // Dim style
+                }
+                
+                item.innerText = labelFn(i);
+                item.dataset.value = i;
+                item.dataset.index = i - startVal + centerPaddingItems;
+                item.onclick = () => { selectScrolledItem(type, i); };
+                container.appendChild(item);
+                
+                if (isSelected) selectedIndex = i - startVal + centerPaddingItems;
+            }
+            
+            // Add Bottom Padding
+             for (let i = 0; i < centerPaddingItems; i++) {
+                 container.innerHTML += `<div style="height: ${SCROLL_ITEM_HEIGHT}px" class="flex items-center justify-center text-lg font-bold opacity-0 pointer-events-none">.</div>`;
+            }
+
+            // 3. Set initial scroll position to center the selected item
+            const initialOffset = selectedIndex * SCROLL_ITEM_HEIGHT;
+            const targetY = -1 * (initialOffset - centerPaddingItems * SCROLL_ITEM_HEIGHT);
+
+            setTimeout(() => {
+                container.style.transitionDuration = '0ms'; 
+                container.style.transform = `translateY(${targetY}px)`;
+                
+                const totalContentHeight = totalItems * SCROLL_ITEM_HEIGHT;
+                // Correct calculation for min/max scroll boundaries
+                const minOffset = (totalItems - 1) * SCROLL_ITEM_HEIGHT;
+                
+                container.dataset.minY = -minOffset;
+                container.dataset.maxY = 0; // Top is 0 relative to padding offset
+                container.dataset.currentY = targetY;
+            }, 50);
+        }
+        
+        // --- Touch/Scroll Logic ---
+        window.startScroll = (e, type) => {
+            const container = document.getElementById(`${type}-list`);
+            if (!container) return;
+            scrollTouchState.startY = e.touches[0].clientY;
+            scrollTouchState.startTransformY = parseFloat(container.dataset.currentY || 0);
+            scrollTouchState.isDragging = true;
+            scrollTouchState.target = container;
+            container.style.transitionDuration = '0ms'; // Disable transition for dragging
+        };
+
+        window.moveScroll = (e, type) => {
+            if (!scrollTouchState.isDragging || scrollTouchState.target.id !== `${type}-list`) return;
+            e.preventDefault(); 
+
+            const deltaY = e.touches[0].clientY - scrollTouchState.startY;
+            let newY = scrollTouchState.startTransformY + deltaY;
+            
+            // Damping logic
+            const minY = parseFloat(scrollTouchState.target.dataset.minY) - 50; // Allow slight overscroll
+            const maxY = parseFloat(scrollTouchState.target.dataset.maxY) + 50;
+
+            if (newY < minY) newY = minY + (newY - minY) * 0.1;
+            if (newY > maxY) newY = maxY + (newY - maxY) * 0.1;
+
+            scrollTouchState.currentY = newY;
+            scrollTouchState.target.style.transform = `translateY(${newY}px)`;
+        };
+
+        window.endScroll = (e, type) => {
+            if (!scrollTouchState.isDragging || scrollTouchState.target.id !== `${type}-list`) return;
+            
+            scrollTouchState.isDragging = false;
+            scrollTouchState.target.style.transitionDuration = '300ms'; 
+            scrollTouchState.target.style.transitionTimingFunction = 'cubic-bezier(0.25, 1, 0.5, 1)'; // Smooth ease out
+
+            let finalY = scrollTouchState.currentY;
+            
+            // Snap to item height
+            const snappedIndex = Math.round(-finalY / SCROLL_ITEM_HEIGHT);
+            finalY = -snappedIndex * SCROLL_ITEM_HEIGHT;
+            
+            // Boundary enforcement
+            const minY = parseFloat(scrollTouchState.target.dataset.minY);
+            const maxY = parseFloat(scrollTouchState.target.dataset.maxY);
+            
+            // Correct logic: minY is negative (bottom limit), maxY is 0 (top limit)
+            // But we calculated dataset.minY/maxY in render differently previously.
+            // Let's rely on snappedIndex range logic instead.
+            
+            const listItems = scrollTouchState.target.querySelectorAll('[data-value]');
+            const minIndex = 0; // Relative to content start (0)
+            const maxIndex = listItems.length - 1;
+
+            // Recalculate based on padding offset
+            // We want translation to align with indices relative to padding.
+            // The logic: translateY = 0 puts index 0 at center (due to top padding).
+            
+            if (finalY > 0) finalY = 0; // Don't scroll past top
+            const maxScroll = -(listItems.length - 1) * SCROLL_ITEM_HEIGHT;
+            if (finalY < maxScroll) finalY = maxScroll;
+            
+            scrollTouchState.target.dataset.currentY = finalY;
+            scrollTouchState.target.style.transform = `translateY(${finalY}px)`;
+
+            // Identify selected item
+            const centerPaddingItems = Math.floor(SCROLL_CONTAINER_HEIGHT / SCROLL_ITEM_HEIGHT / 2);
+            // Index 0 is at translateY 0. Index 1 is at -48.
+            const selectedRelativeIndex = Math.abs(Math.round(finalY / SCROLL_ITEM_HEIGHT));
+            // Actual element index is selectedRelativeIndex + padding offset inside the DOM list
+            
+            // We find the element by visual index calculation
+            // data-index in render was: i - startVal + centerPaddingItems
+            // selectedRelativeIndex corresponds to i - startVal.
+            
+            const targetDataIndex = selectedRelativeIndex + centerPaddingItems;
+            const selectedElement = scrollTouchState.target.querySelector(`[data-index="${targetDataIndex}"]`);
+            
+            if(selectedElement) {
+                const selectedValue = parseInt(selectedElement.dataset.value);
+                selectScrolledItem(type, selectedValue, false);
+            }
+            
+            scrollTouchState = { startY: 0, currentY: 0, startTransformY: 0, isDragging: false, target: null };
+        };
+        
+        // Updates internal temp state and highlights UI
+        function selectScrolledItem(type, value, shouldScroll = true) {
+            let listContainer = document.getElementById(`${type}-list`);
+            if(!listContainer) return;
+            
+            // 1. Update State
+            if (type === 'year') tempPickerYear = value;
+            else if (type === 'month') tempPickerMonth = value;
+
+            // 2. Update UI (High End Style)
+            // Reset all
+            Array.from(listContainer.children).forEach(el => {
+                if(!el.hasAttribute('data-value')) return; // skip padding
+                el.className = `flex items-center justify-center text-lg font-bold transition-all duration-300 cursor-pointer transform text-gray-500 scale-90 opacity-60`;
+            });
+            
+            const newSelected = listContainer.querySelector(`[data-value="${value}"]`);
+            if (newSelected) {
+                newSelected.className = `flex items-center justify-center text-lg font-bold transition-all duration-300 cursor-pointer transform text-white scale-110 shadow-white drop-shadow-md`;
+                
+                if (shouldScroll) {
+                    const centerPaddingItems = Math.floor(SCROLL_CONTAINER_HEIGHT / SCROLL_ITEM_HEIGHT / 2);
+                    const index = parseInt(newSelected.dataset.index);
+                    // data-index includes padding offset.
+                    // To scroll to 0, we need Y=0.
+                    // Y = - (index - padding) * height
+                    
+                    const targetY = -1 * (index - centerPaddingItems) * SCROLL_ITEM_HEIGHT;
+                    
+                    listContainer.style.transitionDuration = '300ms'; 
+                    listContainer.style.transform = `translateY(${targetY}px)`;
+                    listContainer.dataset.currentY = targetY;
+                }
+            }
+        }
+
 
         window.submitTransaction = () => {
             const amount = parseFloat(temp.amount);
