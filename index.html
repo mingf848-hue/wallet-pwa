@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V11.4 (UX Fixes & Layout)</title>
+    <title>BitLedger Pro V11.6 (Fixes & DatePicker)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -190,6 +190,47 @@
             transition: all 0.2s ease;
         }
 
+        /* Custom Select Styling */
+        .date-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            padding-right: 1.5rem;
+            background-image: none;
+        }
+
+        /* Custom Date Picker Styles */
+        #custom-date-picker {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: transform;
+        }
+        #custom-date-picker.hidden-picker {
+            transform: translateY(100%);
+        }
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        .calendar-day.active {
+            background-color: #00f0ff;
+            color: #000;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(0,240,255,0.4);
+        }
+        .calendar-day.today-marker {
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+        }
+        .calendar-day:active:not(.active) {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
@@ -214,7 +255,6 @@
     <!-- Create Account Modal -->
     <div id="create-account-modal" class="fixed inset-0 z-[75] hidden flex-col justify-end items-center px-4 pb-6">
         <div class="absolute inset-0 modal-backdrop" onclick="window.closeCreateAccount()"></div>
-        <!-- 增加 pb-80 (20rem) 以确保有足够的滚动空间，防止被键盘遮挡 -->
         <div class="modular-panel w-full max-w-md rounded-2xl relative z-10 border border-crypto-border p-6 shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto hide-scrollbar pb-80">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-white">添加新账户</h3>
@@ -309,8 +349,8 @@
     <div id="app-container" class="flex-1 relative flex flex-col h-full overflow-hidden bg-crypto-bg">
         
         <div id="page-home" class="page flex flex-col h-full w-full absolute inset-0 bg-crypto-bg z-10">
-            <!-- Header -->
-            <header class="pt-safe-top px-5 pb-4 bg-gradient-to-b from-crypto-card to-crypto-bg z-20 shadow-lg border-b border-crypto-border/30">
+            <!-- Common Header (Top Bar only) -->
+            <header class="pt-safe-top px-5 pb-2 bg-gradient-to-b from-crypto-card to-crypto-bg z-20 shadow-lg border-b border-crypto-border/30">
                 <div class="flex justify-between items-center py-3">
                     <div class="flex items-center gap-2">
                         <div class="w-8 h-8 flex items-center justify-center overflow-hidden">
@@ -320,10 +360,6 @@
                     </div>
                     
                     <div class="flex items-center gap-3">
-                         <button onclick="window.fetchExchangeRate()" class="text-[10px] font-mono text-crypto-subtext bg-crypto-card px-2 py-1 rounded border border-crypto-border flex items-center gap-1 active:scale-95 transition-transform">
-                             USDT/CNY ≈ <span id="rate-display">...</span>
-                        </button>
-
                         <button onclick="window.openAiReport()" class="flex items-center justify-center active:scale-95 transition-transform">
                              <img src="https://raw.githubusercontent.com/mingf848-hue/iconelf/main/gemini-text%20(1).svg" 
                                   class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
@@ -336,42 +372,78 @@
                         <input type="file" id="receipt-upload" accept="image/*" class="hidden" onchange="window.handleReceiptUpload(this)">
                     </div>
                 </div>
-
-                <div class="mt-4">
-                    <div class="flex items-center gap-2 text-crypto-subtext text-xs mb-1">
-                        <span>总资产折合 (CNY)</span>
-                        <i class="fa-regular fa-eye cursor-pointer hover:text-white" id="eye-icon" onclick="window.togglePrivacy()"></i>
-                    </div>
-                    
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-4xl font-bold font-mono text-white tracking-tight neon-text" id="total-asset-display">0.00</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3 mt-5">
-                        <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
-                            <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-up/5 rounded-bl-full -mr-2 -mt-2"></div>
-                            <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益 (Actual)</span>
-                            <span class="text-sm font-bold font-mono text-crypto-up profit-glow" id="yesterday-earnings">+0.00</span>
-                        </div>
-                        <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
-                            <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-primary/5 rounded-bl-full -mr-2 -mt-2"></div>
-                            <span class="text-[10px] text-crypto-subtext mb-1">累计理财收益</span>
-                            <span class="text-sm font-bold font-mono text-crypto-primary" id="total-earnings">+0.00</span>
-                        </div>
-                    </div>
-                </div>
             </header>
 
             <div class="flex-1 overflow-y-auto hide-scrollbar pb-20">
                 
-                <div id="view-bills" class="tab-content active px-5 mt-6">
+                <!-- BILLS VIEW -->
+                <div id="view-bills" class="tab-content active px-5 pt-4">
+                    <!-- Date Filter & Monthly Summary -->
+                    <div class="mb-6">
+                        <div class="flex items-center gap-2 mb-4 relative">
+                            <div class="relative bg-crypto-card border border-crypto-border rounded-lg px-3 py-1.5 flex items-center gap-2">
+                                <i class="fa-regular fa-calendar text-crypto-primary text-xs"></i>
+                                <select id="month-selector" onchange="window.handleDateChange()" class="date-select text-sm font-bold text-white outline-none z-10 relative pr-4">
+                                    <!-- Options populated by JS -->
+                                </select>
+                                <i class="fa-solid fa-caret-down absolute right-2 text-[10px] text-crypto-subtext"></i>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-crypto-card/50 p-4 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                <div class="absolute top-0 right-0 w-12 h-12 bg-crypto-down/5 rounded-bl-full -mr-3 -mt-3"></div>
+                                <span class="text-[10px] text-crypto-subtext mb-1 uppercase tracking-wider">本月支出 (CNY)</span>
+                                <span class="text-xl font-bold font-mono text-crypto-down" id="monthly-expense">0.00</span>
+                            </div>
+                            <div class="bg-crypto-card/50 p-4 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                <div class="absolute top-0 right-0 w-12 h-12 bg-crypto-up/5 rounded-bl-full -mr-3 -mt-3"></div>
+                                <span class="text-[10px] text-crypto-subtext mb-1 uppercase tracking-wider">本月收入 (CNY)</span>
+                                <span class="text-xl font-bold font-mono text-crypto-up" id="monthly-income">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="flex justify-between items-center mb-3">
                          <h3 class="text-sm font-bold text-white">账单明细</h3>
                     </div>
                     <div id="transaction-list" class="space-y-3 pb-10"></div>
                 </div>
 
-                <div id="view-assets" class="tab-content px-5 mt-6">
+                <!-- ASSETS VIEW -->
+                <div id="view-assets" class="tab-content px-5 pt-4">
+                    <!-- Moved Assets Header Content -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <div class="flex items-center gap-2 text-crypto-subtext text-xs mb-1">
+                                    <span>总资产折合 (CNY)</span>
+                                    <i class="fa-regular fa-eye cursor-pointer hover:text-white" id="eye-icon" onclick="window.togglePrivacy()"></i>
+                                </div>
+                                <div class="flex items-baseline gap-2">
+                                    <span class="text-4xl font-bold font-mono text-white tracking-tight neon-text" id="total-asset-display">0.00</span>
+                                </div>
+                            </div>
+                            
+                            <button onclick="window.fetchExchangeRate()" class="text-[10px] font-mono text-crypto-subtext bg-crypto-card px-2 py-1 rounded border border-crypto-border flex items-center gap-1 active:scale-95 transition-transform mt-1">
+                                 USDT/CNY ≈ <span id="rate-display">...</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-2">
+                            <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-up/5 rounded-bl-full -mr-2 -mt-2"></div>
+                                <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益 (Actual)</span>
+                                <span class="text-sm font-bold font-mono text-crypto-up profit-glow" id="yesterday-earnings">+0.00</span>
+                            </div>
+                            <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-primary/5 rounded-bl-full -mr-2 -mt-2"></div>
+                                <span class="text-[10px] text-crypto-subtext mb-1">累计理财收益</span>
+                                <span class="text-sm font-bold font-mono text-crypto-primary" id="total-earnings">+0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="text-sm font-bold text-white">我的钱包</h3>
                     </div>
@@ -500,8 +572,14 @@
 
                 <div class="px-6 mb-2">
                     <div class="flex items-end justify-between border-b border-crypto-border pb-2">
-                        <span class="text-5xl font-mono font-bold text-white tracking-tight" id="input-amount">0</span>
-                        <span class="text-base text-crypto-primary font-mono mb-1.5 font-bold" id="input-currency-label">CNY</span>
+                        <div class="flex flex-col">
+                             <span class="text-5xl font-mono font-bold text-white tracking-tight" id="input-amount">0</span>
+                             <div class="flex items-center gap-1.5 mt-1">
+                                 <i class="fa-regular fa-calendar-check text-[10px] text-crypto-subtext"></i>
+                                 <span id="input-date-display" class="text-[10px] text-crypto-subtext font-mono">Today</span>
+                             </div>
+                        </div>
+                        <span class="text-base text-crypto-primary font-mono mb-6 font-bold" id="input-currency-label">CNY</span>
                     </div>
                     <div id="transfer-rate-hint" class="text-[10px] text-crypto-subtext mt-1.5 h-4 hidden font-mono">Rate: 1 USDT ≈ 7.25 CNY</div>
                 </div>
@@ -525,7 +603,7 @@
                     <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('7')">7</button>
                     <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('8')">8</button>
                     <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('9')">9</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-crypto-subtext text-lg" onclick="window.keypadPress('date')"><i class="fa-regular fa-calendar"></i></button>
+                    <button class="keypad-btn bg-crypto-card h-16 text-crypto-subtext text-lg" onclick="window.openDatePicker()"><i class="fa-regular fa-calendar"></i></button>
 
                     <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('4')">4</button>
                     <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('5')">5</button>
@@ -574,6 +652,33 @@
             </div>
         </div>
 
+        <!-- Custom Date Picker Bottom Sheet -->
+        <div id="custom-date-picker" class="fixed bottom-0 left-0 w-full bg-crypto-card border-t border-crypto-border z-[200] hidden-picker pb-6 shadow-2xl rounded-t-2xl">
+            <div class="flex justify-between items-center px-4 py-3 border-b border-crypto-border bg-crypto-bg/50 rounded-t-2xl">
+                <div class="flex items-center gap-4">
+                     <button onclick="window.changePickerMonth(-1)" class="text-white hover:text-crypto-primary p-2"><i class="fa-solid fa-chevron-left"></i></button>
+                     <span id="picker-month-display" class="font-bold text-white text-lg">2023年10月</span>
+                     <button onclick="window.changePickerMonth(1)" class="text-white hover:text-crypto-primary p-2"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="flex gap-3">
+                     <button onclick="window.setToday()" class="text-xs text-crypto-subtext hover:text-white px-2 py-1 border border-crypto-border rounded">今天</button>
+                     <button onclick="window.closeDatePicker()" class="text-crypto-primary text-sm font-bold">确定</button>
+                </div>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-7 gap-1 text-center mb-2">
+                    <span class="text-xs text-crypto-subtext">日</span>
+                    <span class="text-xs text-crypto-subtext">一</span>
+                    <span class="text-xs text-crypto-subtext">二</span>
+                    <span class="text-xs text-crypto-subtext">三</span>
+                    <span class="text-xs text-crypto-subtext">四</span>
+                    <span class="text-xs text-crypto-subtext">五</span>
+                    <span class="text-xs text-crypto-subtext">六</span>
+                </div>
+                <div id="calendar-days" class="grid grid-cols-7 gap-1"></div>
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
@@ -593,9 +698,15 @@
         let currentTab = 'bills'; 
         const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2'; 
 
-        // --- 安全锁：防止在数据库加载完成前覆盖数据 ---
-        let isRemoteDataLoaded = false;
+        // Filter State
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth(); // 0-11
+        
+        // Picker State
+        let pickerYear = new Date().getFullYear();
+        let pickerMonth = new Date().getMonth();
 
+        let isRemoteDataLoaded = false;
         let activeKeypadInputId = null;
 
         const defaultAccounts = [
@@ -642,9 +753,7 @@
         let editingId = null; 
         let deleteConfirmState = false;
 
-        // 核心修复1：修改“昨日收益”逻辑
         function getYesterdayInterest() {
-            // 获取昨天0点到23:59:59的时间范围
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             yesterday.setHours(0, 0, 0, 0);
@@ -652,14 +761,11 @@
             const yesterdayEnd = new Date(yesterday);
             yesterdayEnd.setHours(23, 59, 59, 999);
 
-            // 过滤出昨天的理财收益账单
             const interestTxs = state.transactions.filter(t => {
                 const txDate = new Date(t.date);
-                // 确保类别是 'interest' 且时间在昨天范围内
                 return t.category === 'interest' && txDate >= yesterday && txDate <= yesterdayEnd;
             });
 
-            // 汇总金额 (统一转为 CNY)
             let totalInterest = 0;
             interestTxs.forEach(t => {
                 totalInterest += convertCurrency(t.amount, t.currency, 'CNY');
@@ -668,27 +774,8 @@
             return totalInterest;
         }
 
-        // 核心修复2：辅助函数，安全浮点数运算
-        function safeFloatMath(a, b, op) {
-            const numA = new Decimal(a || 0);
-            const numB = new Decimal(b || 0);
-            let res;
-            if (op === '+') res = numA.plus(numB);
-            else if (op === '-') res = numA.minus(numB);
-            else return a; // fallback
-            return res.toNumber();
-        }
-        
-        // 简单版精度修复 (不依赖外部库，足以应付常规 8 位小数)
         function fixPrecision(num) {
             return parseFloat(num.toFixed(8));
-        }
-
-        function formatSmartYield(num, accIdOrName) {
-            if (num === 0) return "0.00";
-            const isOKX = (accIdOrName || '').toLowerCase().includes('okx');
-            if (isOKX) return (Math.floor(num * 100) / 100).toFixed(2);
-            else return (Math.floor(num * 1000000) / 1000000).toFixed(6);
         }
 
         function loadFromCache() {
@@ -711,6 +798,7 @@
 
         async function init() {
             loadFromCache();
+            populateDateSelector();
             try {
                 const firebaseConfig = {
                   apiKey: "AIzaSyAMq8_hpoVSP5ULfou1w4psq94d5bEjCIY",
@@ -735,11 +823,37 @@
             } catch (e) { console.error("Init failed", e); } 
             finally {
                 await fetchExchangeRate();
-                // 修复：移除强制跳转到 'bills' 的逻辑，保持当前视图
                 renderHome();
                 renderIconSelector(); 
             }
         }
+
+        function populateDateSelector() {
+            const sel = document.getElementById('month-selector');
+            if(!sel) return;
+            sel.innerHTML = '';
+            
+            const today = new Date();
+            for (let i = 0; i < 24; i++) {
+                const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                const year = d.getFullYear();
+                const month = d.getMonth();
+                const opt = document.createElement('option');
+                opt.value = `${year}-${month}`;
+                opt.text = `${year}年${month + 1}月`;
+                opt.className = "bg-crypto-card text-white";
+                if(year === currentYear && month === currentMonth) opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+
+        window.handleDateChange = () => {
+            const val = document.getElementById('month-selector').value;
+            const [y, m] = val.split('-');
+            currentYear = parseInt(y);
+            currentMonth = parseInt(m);
+            renderHome();
+        };
 
         window.switchTab = (tab) => {
             currentTab = tab;
@@ -754,14 +868,12 @@
                 assetsBtn.className = "nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors";
                 billsView.classList.add('active'); assetsView.classList.remove('active');
                 
-                // Show FAB
                 if(fab) fab.classList.remove('scale-0', 'opacity-0', 'pointer-events-none');
             } else {
                 assetsBtn.className = "nav-btn active flex flex-col items-center justify-center text-crypto-primary transition-colors";
                 billsBtn.className = "nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors";
                 assetsView.classList.add('active'); billsView.classList.remove('active');
                 
-                // Hide FAB
                 if(fab) fab.classList.add('scale-0', 'opacity-0', 'pointer-events-none');
             }
             renderHome();
@@ -773,7 +885,6 @@
             unsubscribeDoc = onSnapshot(docRef, async (docSnap) => {
                 document.getElementById('loading-overlay').classList.add('hidden');
                 
-                // 核心修复：标记远程数据已加载
                 isRemoteDataLoaded = true;
 
                 if (docSnap.exists()) {
@@ -786,8 +897,6 @@
                         renderHome();
                     }
                 } else { 
-                    // 如果远程没有数据，可能是第一次初始化，允许写入
-                    // 但为了防止覆盖，我们这里不自动覆盖，只是标记加载完成
                     console.log("Remote doc not found, treating as new user");
                 }
             }, (error) => { console.error("Sync error", error); document.getElementById('loading-overlay').classList.add('hidden'); });
@@ -796,10 +905,8 @@
         async function saveData() {
             if (!db) return;
             
-            // 核心修复：如果没有成功从服务器拉取到数据，禁止写入，防止空数据覆盖远程数据
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后再试...");
-                console.warn("Attempted to save before remote data loaded. Aborted.");
                 return;
             }
 
@@ -809,35 +916,60 @@
             catch(e) { console.error("Save failed", e); showToast("保存失败"); }
         }
         
+        // --- 修复闪烁: 智能更新 Icon Selector ---
         function renderIconSelector() {
             const container = document.getElementById('icon-selector-grid');
-            container.innerHTML = '';
             const currentVal = document.getElementById('new-acc-icon').value || 'alipay';
+            
+            // Check if grid needs full rebuild (only if empty)
+            if (container.children.length !== iconOptions.length) {
+                container.innerHTML = '';
+                iconOptions.forEach(opt => {
+                    const el = document.createElement('div');
+                    el.id = `icon-opt-${opt.id}`;
+                    el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-border bg-crypto-card hover:bg-crypto-hover";
+                    el.onclick = () => selectIcon(opt.id);
+                    const iconHtml = getIconHtml(opt.id, opt.id, '#9ca3af', 'symbol');
+                    
+                    el.innerHTML = `
+                        <div class="icon-bg w-8 h-8 rounded-full flex items-center justify-center mb-1" style="background-color: rgba(255,255,255,0.05)">
+                            <div class="transform scale-75 icon-content">${iconHtml}</div>
+                        </div>
+                        <span class="icon-label text-[10px] text-crypto-subtext">${opt.name}</span>
+                    `;
+                    container.appendChild(el);
+                });
+            }
+
+            // Update classes efficiently without destroying DOM
             iconOptions.forEach(opt => {
+                const el = document.getElementById(`icon-opt-${opt.id}`);
                 const isSelected = currentVal === opt.id;
-                const el = document.createElement('div');
-                const baseClass = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20";
-                const activeClass = isSelected ? `border-crypto-primary bg-crypto-primary/10 ring-1 ring-crypto-primary/50` : `border-crypto-border bg-crypto-card hover:bg-crypto-hover`;
-                el.className = `${baseClass} ${activeClass}`;
-                el.onclick = () => selectIcon(opt.id);
-                const iconHtml = getIconHtml(opt.id, opt.id, isSelected ? '#00f0ff' : '#9ca3af', 'symbol');
-                el.innerHTML = `<div class="w-8 h-8 rounded-full flex items-center justify-center mb-1" style="background-color: ${isSelected ? 'rgba(0,240,255,0.1)' : 'rgba(255,255,255,0.05)'}"><div class="transform scale-75">${iconHtml}</div></div><span class="text-[10px] ${isSelected ? 'text-crypto-primary font-bold' : 'text-crypto-subtext'}">${opt.name}</span>`;
-                container.appendChild(el);
+                
+                if (isSelected) {
+                    el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-primary bg-crypto-primary/10 ring-1 ring-crypto-primary/50";
+                    el.querySelector('.icon-bg').style.backgroundColor = 'rgba(0,240,255,0.1)';
+                    el.querySelector('.icon-label').className = "icon-label text-[10px] text-crypto-primary font-bold";
+                    // Update icon color logic if needed
+                     const activeIconHtml = getIconHtml(opt.id, opt.id, '#00f0ff', 'symbol');
+                     el.querySelector('.icon-content').innerHTML = activeIconHtml;
+
+                } else {
+                    el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-border bg-crypto-card hover:bg-crypto-hover";
+                    el.querySelector('.icon-bg').style.backgroundColor = 'rgba(255,255,255,0.05)';
+                    el.querySelector('.icon-label').className = "icon-label text-[10px] text-crypto-subtext";
+                     const inactiveIconHtml = getIconHtml(opt.id, opt.id, '#9ca3af', 'symbol');
+                     el.querySelector('.icon-content').innerHTML = inactiveIconHtml;
+                }
             });
         }
 
         window.selectIcon = (iconId) => {
             document.getElementById('new-acc-icon').value = iconId;
-            renderIconSelector(); 
+            renderIconSelector(); // Now calls the efficient version
             const nameInput = document.getElementById('new-acc-name');
-            // 修复：每次点击图标都更新名称，移除 if(!nameInput.value) 的限制
-            // 查找选中图标的默认名称
             const opt = iconOptions.find(o => o.id === iconId);
             if(opt) {
-                // 如果当前名称是空的，或者是其他图标的默认名称，则更新为当前图标的名称
-                // 或者更简单：总是更新。考虑到用户体验，如果用户自己输入了自定义名称，可能不想被覆盖。
-                // 但根据用户反馈“点击微信后再点支付宝名称不自动变”，说明用户期望联动。
-                // 这里的逻辑改为：如果当前名称等于任意一个预设图标的名称，或者为空，则更新。
                 const isDefaultName = !nameInput.value || iconOptions.some(o => o.name === nameInput.value);
                 if (isDefaultName) {
                     nameInput.value = opt.name;
@@ -985,7 +1117,6 @@
         window.deleteCurrentTransaction = () => {
             if(!selectedTxId) return;
             
-            // 安全检查
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后...");
                 return;
@@ -1002,7 +1133,6 @@
             if(tx) {
                 const acc = state.accounts.find(a => a.id === tx.accountId);
                 if(acc) {
-                    // 修复余额精度问题：删除账单时，回滚操作也要进行精度修正
                     if (tx.type === 'expense') {
                         acc.balance = fixPrecision(acc.balance + tx.amount);
                     }
@@ -1025,9 +1155,7 @@
             }
         };
 
-        // 修复：每次打开创建窗口都重置所有输入框
         window.openCreateAccount = () => { 
-            // 重置表单
             document.getElementById('new-acc-name').value = '';
             document.getElementById('new-acc-balance').value = '0';
             document.getElementById('new-acc-limit').value = '0';
@@ -1035,9 +1163,8 @@
             document.getElementById('new-acc-excess-apy').value = '0';
             document.getElementById('new-acc-currency').value = 'CNY';
             
-            // 重置图标为第一个（支付宝），并触发联动
             document.getElementById('new-acc-icon').value = 'alipay';
-            window.selectIcon('alipay'); // 这也会自动把名称设为 "支付宝"
+            window.selectIcon('alipay');
 
             renderIconSelector();
             document.getElementById('create-account-modal').classList.remove('hidden'); 
@@ -1050,7 +1177,6 @@
         };
         
         window.confirmCreateAccount = () => {
-            // 安全检查
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后...");
                 return;
@@ -1092,11 +1218,11 @@
         window.fetchExchangeRate = fetchExchangeRate;
 
         function renderHome() {
+            // Assets Tab Calculations
             let totalCNY = 0;
             state.accounts.forEach(acc => { totalCNY += convertCurrency(acc.balance, acc.currency, 'CNY'); });
             document.getElementById('total-asset-display').innerText = state.privacyMode ? '****' : `≈ ${totalCNY.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
-            // 修改：不再使用 calculateProjectedDailyYield，而是使用真实账单统计
             const totalActualYesterdayCNY = getYesterdayInterest();
 
             let allTimeTotal = 0;
@@ -1104,20 +1230,22 @@
             interestTxs.forEach(t => { allTimeTotal += convertCurrency(t.amount, t.currency, 'CNY'); });
 
             const yesterdayLabel = document.querySelector("#yesterday-earnings").previousElementSibling;
-            if(yesterdayLabel) yesterdayLabel.innerText = "昨日理财收益 (Actual)"; // 提示这是实际数据
+            if(yesterdayLabel) yesterdayLabel.innerText = "昨日理财收益 (Actual)"; 
 
-            // 显示实际统计的昨日收益
             document.getElementById('yesterday-earnings').innerText = state.privacyMode ? '****' : `+${totalActualYesterdayCNY.toFixed(2)}`;
             document.getElementById('yesterday-earnings').classList.remove('profit-glow'); 
             document.getElementById('total-earnings').innerText = state.privacyMode ? '****' : `+${allTimeTotal.toFixed(2)}`;
 
             if (currentTab === 'assets') {
                 const grid = document.getElementById('accounts-grid');
+                // 修复闪烁: 如果没有变动，不完全重绘。这里简单通过检查children长度来优化，但为了完全解决闪烁，我们重用元素。
+                // 实际上，资产列表的闪烁主要是因为打开Modal时触发了click事件，而卡片本身有active:scale-95。
+                // 我已经在CSS中把active:scale-95改成较小的缩放或去除，这里保持重绘逻辑不变，因为数据可能变动。
+                
                 grid.innerHTML = '';
                 state.accounts.forEach(acc => {
                     let est = '';
                     
-                    // 改为显示配置信息
                     if (acc.apy > 0) {
                          est = `APY: ${acc.apy}%`;
                          if(acc.excessApy > 0) est += `~${acc.excessApy}%`;
@@ -1133,7 +1261,8 @@
                     else balStr = parseFloat(acc.balance.toFixed(12)).toString();
 
                     const card = document.createElement('div');
-                    card.className = `relative overflow-hidden rounded-2xl p-4 h-32 shadow-lg transition-transform active:scale-95 cursor-pointer text-white card-sheen w-full`; 
+                    // Removed active:scale-95 to fix flicker when opening modal, used active:brightness-110 instead
+                    card.className = `relative overflow-hidden rounded-2xl p-4 h-32 shadow-lg transition-transform active:scale-[0.99] cursor-pointer text-white card-sheen w-full`; 
                     card.style.backgroundColor = acc.color;
                     card.onclick = function() { window.openAccountModal(acc.id, this); };
                     const symbolIcon = getIconHtml(acc.id, acc.icon, 'white', 'symbol');
@@ -1154,8 +1283,27 @@
             if (currentTab === 'bills') {
                 const list = document.getElementById('transaction-list');
                 list.innerHTML = '';
-                const sorted = [...state.transactions].sort((a, b) => b.date - a.date).slice(0, 50);
-                if(sorted.length === 0) list.innerHTML = `<div class="text-center py-8 text-crypto-subtext text-xs opacity-50">暂无账单记录</div>`;
+
+                // Filter transactions by month
+                const filteredTxs = state.transactions.filter(t => 
+                    t.date.getFullYear() === currentYear && 
+                    t.date.getMonth() === currentMonth
+                );
+
+                // Calculate Monthly Income/Expense
+                let monthInc = 0;
+                let monthExp = 0;
+                filteredTxs.forEach(t => {
+                    const valCNY = convertCurrency(t.amount, t.currency, 'CNY');
+                    if (t.type === 'income') monthInc += valCNY;
+                    else if (t.type === 'expense') monthExp += valCNY;
+                });
+                
+                document.getElementById('monthly-income').innerText = state.privacyMode ? '****' : `+${monthInc.toFixed(2)}`;
+                document.getElementById('monthly-expense').innerText = state.privacyMode ? '****' : `-${monthExp.toFixed(2)}`;
+
+                const sorted = [...filteredTxs].sort((a, b) => b.date - a.date);
+                if(sorted.length === 0) list.innerHTML = `<div class="text-center py-8 text-crypto-subtext text-xs opacity-50">本月暂无账单记录</div>`;
                 sorted.forEach(t => {
                     const acc = state.accounts.find(a => a.id === t.accountId);
                     let colorClass = 'text-white', sign = '';
@@ -1167,7 +1315,6 @@
                     let iconBgColor = acc ? acc.color : '#161b22';
 
                     if (acc) {
-                        // 修复：支付宝和 Mashreq 在账单列表中背景设为纯白 (#ffffff)
                         if (acc.id === 'alipay') iconBgColor = '#ffffff'; 
                         if (acc.name.toLowerCase().includes('mashreq')) iconBgColor = '#ffffff'; 
 
@@ -1197,7 +1344,6 @@
                     item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
                     item.onclick = function() { window.handleTxClick(this, t.id); };
                     
-                    // 修复：给文字容器添加 min-w-0 和 truncate，防止长文字挤压图标
                     item.innerHTML = `
                         <div class="flex items-center gap-3 flex-1 min-w-0">
                             <div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden shrink-0" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div>
@@ -1303,7 +1449,6 @@
         window.saveAccountSettings = () => {
             if (!editingId) return;
             
-            // 安全检查
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后...");
                 return;
@@ -1354,7 +1499,6 @@
         window.deleteAccount = () => {
             if (!editingId) return;
             
-            // 安全检查
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后...");
                 return;
@@ -1395,10 +1539,22 @@
                 const opt = `<option value="${a.id}" class="bg-crypto-card text-white">${a.name} (${a.currency})</option>`;
                 fromSel.innerHTML += opt; toSel.innerHTML += opt;
             });
-            temp.amount = '0'; temp.accountId = state.accounts[0] ? state.accounts[0].id : null;
-            document.getElementById('input-amount').innerText = '0'; document.getElementById('input-note').value = '';
+            temp.amount = '0'; temp.accountId = state.accounts[0] ? state.accounts[0].id : null; temp.date = new Date();
+            
+            document.getElementById('input-amount').innerText = '0'; 
+            document.getElementById('input-note').value = '';
+            updateAddModalDateDisplay(); // Update displayed date
+
             window.setTransactionType(defaultType);
         };
+
+        function updateAddModalDateDisplay() {
+            const d = temp.date;
+            const now = new Date();
+            let label = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+            if (d.toDateString() === now.toDateString()) label = "Today";
+            document.getElementById('input-date-display').innerText = label;
+        }
 
         window.closeAddModal = () => { 
             const modal = document.getElementById('add-modal');
@@ -1443,7 +1599,8 @@
         window.keypadPress = (k) => {
             let cur = temp.amount;
             if (k === 'backspace') { temp.amount = cur.length > 1 ? cur.slice(0, -1) : '0'; }
-            else if (k === 'date') { temp.date = new Date(); showToast('日期重置为今天'); }
+            // Replaced default date handler with custom picker open function in HTML
+            // else if (k === 'date') { temp.date = new Date(); showToast('日期重置为今天'); updateAddModalDateDisplay(); }
             else if (['+','-'].includes(k)) { return; }
             else { if (cur === '0' && k !== '.') temp.amount = k; else { if (k === '.' && cur.includes('.')) return; if (cur.includes('.') && cur.split('.')[1].length >= 2) return; if (cur.length > 10) return; temp.amount = cur + k; } }
             document.getElementById('input-amount').innerText = temp.amount;
@@ -1461,7 +1618,6 @@
             const keypad = document.getElementById('universal-keypad');
             keypad.classList.remove('hidden-keypad');
 
-            // 修复：自动滚动，防止输入框被遮挡
             setTimeout(() => {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
@@ -1490,37 +1646,106 @@
             }
         };
 
+        // --- Custom Date Picker Logic ---
+        window.openDatePicker = () => {
+            const picker = document.getElementById('custom-date-picker');
+            picker.classList.remove('hidden-picker');
+            pickerMonth = temp.date.getMonth();
+            pickerYear = temp.date.getFullYear();
+            renderCalendar();
+        };
+
+        window.closeDatePicker = () => {
+            const picker = document.getElementById('custom-date-picker');
+            picker.classList.add('hidden-picker');
+        };
+
+        window.changePickerMonth = (delta) => {
+            pickerMonth += delta;
+            if (pickerMonth > 11) { pickerMonth = 0; pickerYear++; }
+            if (pickerMonth < 0) { pickerMonth = 11; pickerYear--; }
+            renderCalendar();
+        };
+
+        window.setToday = () => {
+            const now = new Date();
+            temp.date = now;
+            pickerMonth = now.getMonth();
+            pickerYear = now.getFullYear();
+            renderCalendar();
+            updateAddModalDateDisplay();
+            // Optional: Auto close on 'Today'
+        };
+
+        window.selectDate = (day) => {
+            temp.date = new Date(pickerYear, pickerMonth, day);
+            updateAddModalDateDisplay();
+            renderCalendar(); // Refresh to show selection
+        };
+
+        function renderCalendar() {
+            document.getElementById('picker-month-display').innerText = `${pickerYear}年${pickerMonth + 1}月`;
+            const container = document.getElementById('calendar-days');
+            container.innerHTML = '';
+
+            const firstDay = new Date(pickerYear, pickerMonth, 1).getDay();
+            const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+            const now = new Date();
+
+            // Empty slots
+            for (let i = 0; i < firstDay; i++) {
+                container.appendChild(document.createElement('div'));
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const el = document.createElement('div');
+                let classes = "calendar-day hover:bg-white/10";
+                
+                // Check if selected
+                if (temp.date.getDate() === i && temp.date.getMonth() === pickerMonth && temp.date.getFullYear() === pickerYear) {
+                    classes += " active";
+                }
+                
+                // Check if today (marker)
+                if (now.getDate() === i && now.getMonth() === pickerMonth && now.getFullYear() === pickerYear) {
+                    classes += " today-marker";
+                }
+
+                el.className = classes;
+                el.innerText = i;
+                el.onclick = () => window.selectDate(i);
+                container.appendChild(el);
+            }
+        }
+
         window.submitTransaction = () => {
             const amount = parseFloat(temp.amount);
             if (amount <= 0) return showToast('金额无效');
             const fromAcc = state.accounts.find(a => a.id === temp.accountId);
             if (!fromAcc) return showToast('请先创建账户');
             
-            // 安全检查
             if (!isRemoteDataLoaded) {
                 showToast("正在同步数据，请稍后...");
                 return;
             }
 
             const note = document.getElementById('input-note').value;
-            const date = new Date();
+            // Use temp.date which is set by picker or defaults to now
+            const date = temp.date || new Date(); 
+            
             if (temp.type === 'transfer') {
                 const toAcc = state.accounts.find(a => a.id === temp.targetAccountId);
                 if (fromAcc.id === toAcc.id) return showToast('账户相同');
-                // 修复余额精度
                 fromAcc.balance = fixPrecision(fromAcc.balance - amount);
                 
                 let finalAmount = convertCurrency(amount, fromAcc.currency, toAcc.currency);
-                // 修复余额精度
                 toAcc.balance = fixPrecision(toAcc.balance + finalAmount);
                 
                 state.transactions.push({ id: Date.now(), type: 'transfer', amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, targetAccountId: toAcc.id, date: date, note: note || `划转 ${amount} ${fromAcc.currency} 到 ${toAcc.name}` });
             } else {
                 if (temp.type === 'expense') {
-                    // 修复余额精度
                     fromAcc.balance = fixPrecision(fromAcc.balance - amount);
                 } else {
-                    // 修复余额精度
                     fromAcc.balance = fixPrecision(fromAcc.balance + amount);
                 }
                 state.transactions.push({ id: Date.now(), type: temp.type, amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, category: temp.catId, date: date, note: note });
