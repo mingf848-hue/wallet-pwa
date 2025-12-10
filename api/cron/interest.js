@@ -1,12 +1,10 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// 全局配置 ID
 const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2';
 
-// --- 1. 初始化 Firebase Admin (防止冷启动重复初始化) ---
+// 初始化 Firebase Admin
 if (getApps().length === 0) {
-    // 从 Vercel 环境变量读取私钥
     const serviceAccount = JSON.parse(process.env.BITLEDGER_KEY);
     initializeApp({
         credential: cert(serviceAccount)
@@ -16,21 +14,19 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 export default async function handler(req, res) {
-    // 简单的安全验证：防止别人通过 URL 恶意触发
-    // Vercel Cron 会自动带上这就头，如果你手动测试，可以去掉这行检查
+    // 鉴权 (可选)
     const authHeader = req.headers.get('authorization');
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         // return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    console.log(`\n🚀 [Vercel Cron] 开始执行每日利息计算...`);
+    console.log(`\n🚀 [Cron] 开始执行精准利息计算...`);
 
     try {
         const docRef = db.collection('bitledger_storage').doc(GLOBAL_WALLET_DOC_ID);
         const docSnap = await docRef.get();
 
         if (!docSnap.exists) {
-            console.error("❌ 未找到钱包数据");
             return res.status(404).json({ error: "Document not found" });
         }
 
@@ -42,30 +38,54 @@ export default async function handler(req, res) {
         let totalYieldCount = 0;
         let logs = [];
 
-        // --- 2. 核心计算循环 (你的原始逻辑) ---
+        // --- 核心循环 ---
         for (let acc of accounts) {
             const currentBal = parseFloat(acc.balance) || 0;
             
+            // 只有余额大于 0 才计算
             if (currentBal > 0) {
+                // 1. 获取基础参数
                 const limit = parseFloat(acc.tierLimit) || 0; 
-                const baseApy = parseFloat(acc.apy || 0) / 100;
+                const baseApy = parseFloat(acc.apy || 0) / 100;      
                 const excessApy = parseFloat(acc.excessApy || 0) / 100; 
 
                 let rawInterest = 0;
 
-                // 阶梯利率逻辑
+                // 2. 计算原始利息 (高精度)
                 if (limit > 0 && currentBal > limit) {
-                    rawInterest = ((limit * baseApy) + ((currentBal - limit) * excessApy)) / 365;
+                    // 阶梯模式: (限额 * 基础) + (超出部分 * 进阶)
+                    const tier1Income = (limit * baseApy) / 365;
+                    const tier2Income = ((currentBal - limit) * excessApy) / 365;
+                    rawInterest = tier1Income + tier2Income;
                 } else {
+                    // 普通模式
                     rawInterest = (currentBal * baseApy) / 365;
                 }
 
-                // 精度修复逻辑 (向下取整保留6位)
-                let interest = Math.floor(rawInterest * 1000000) / 1000000;
+                // 3. ★★★ 核心修复：针对交易所的特殊精度处理 ★★★
+                let finalInterest = 0;
+                
+                // 判断是否是 OKX (不区分大小写)
+                const isOKX = acc.name.toLowerCase().includes('okx') || acc.id.toLowerCase().includes('okx');
 
-                if (interest > 0) {
-                    acc.balance += interest; // 更新余额
+                if (isOKX) {
+                    // === OKX 逻辑 ===
+                    // 规则：保留 2 位小数，向下取整 (Floor)
+                    // 例子：2.7451 -> 2.74
+                    finalInterest = Math.floor(rawInterest * 100) / 100;
+                } else {
+                    // === Bitget / 默认逻辑 ===
+                    // 规则：保留 6 位小数，向下取整 (Floor)
+                    // 例子：1.2794819 -> 1.279481
+                    finalInterest = Math.floor(rawInterest * 1000000) / 1000000;
+                }
 
+                // 只有最终利息 > 0 才入账
+                if (finalInterest > 0) {
+                    // 更新余额 (注意 JS 浮点数相加，这里为了安全可以再次做一次精度修正，但通常直接加即可)
+                    acc.balance += finalInterest; 
+
+                    // 构造备注
                     let noteStr = `收益 ${acc.apy}%`;
                     if (limit > 0) { 
                         noteStr = `阶梯收益 (前${limit}享${acc.apy}%, 超出享${acc.excessApy}%)`; 
@@ -75,7 +95,7 @@ export default async function handler(req, res) {
                     transactions.push({
                         id: Date.now() + Math.random(),
                         type: 'income',
-                        amount: interest,
+                        amount: finalInterest, // 这里存入的就是处理好的 2位 或 6位 小数
                         currency: acc.currency,
                         accountId: acc.id,
                         category: 'interest',
@@ -87,14 +107,14 @@ export default async function handler(req, res) {
                     
                     updated = true;
                     totalYieldCount++;
-                    const logMsg = `💰 [${acc.name}] 派发: +${interest.toFixed(6)} ${acc.currency}`;
+                    const logMsg = `💰 [${acc.name}] 派发: +${finalInterest} ${acc.currency}`;
                     console.log(logMsg);
                     logs.push(logMsg);
                 }
             }
         }
 
-        // --- 3. 保存回数据库 ---
+        // --- 保存 ---
         if (updated) {
             state.lastInterestDate = new Date().toISOString();
             
@@ -105,15 +125,13 @@ export default async function handler(req, res) {
                 'updatedAt': new Date()
             });
             
-            console.log(`🎉 结算完成！共 ${totalYieldCount} 个账户产生利息。`);
             return res.status(200).json({ success: true, count: totalYieldCount, logs: logs });
         } else {
-            console.log("💤 今日无利息产生。");
-            return res.status(200).json({ success: true, message: "No interest generated today." });
+            return res.status(200).json({ success: true, message: "No interest generated." });
         }
 
     } catch (error) {
-        console.error("❌ 执行出错:", error);
+        console.error("❌ Error:", error);
         return res.status(500).json({ error: error.message });
     }
 }
