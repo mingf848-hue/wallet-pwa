@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/update-rates",
+      "schedule": "0 03 * * *" 
+    },
+    {
       "path": "/api/cron/interest",
       "schedule": "0 16 * * *"
     }
