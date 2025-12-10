@@ -2,7 +2,7 @@
   "name": "bitledger-webhook",
   "version": "1.0.0",
   "dependencies": {
-    "firebase": "^11.0.2"
+    "firebase": "^11.0.2",
     "firebase-admin": "^12.0.0"
   }
 }
