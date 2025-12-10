@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V11.3 (Real Yield & Precision Fix)</title>
+    <title>BitLedger Pro V11.4 (UX Fixes & Layout)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -194,7 +194,7 @@
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
 
-    <!-- Loading Overlay (Visible initially to prevent early clicks) -->
+    <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-white flex">
         <div class="relative w-16 h-16 mb-6">
             <div class="absolute inset-0 rounded-full border-2 border-crypto-primary opacity-20"></div>
@@ -214,7 +214,8 @@
     <!-- Create Account Modal -->
     <div id="create-account-modal" class="fixed inset-0 z-[75] hidden flex-col justify-end items-center px-4 pb-6">
         <div class="absolute inset-0 modal-backdrop" onclick="window.closeCreateAccount()"></div>
-        <div class="modular-panel w-full max-w-md rounded-2xl relative z-10 border border-crypto-border p-6 shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto hide-scrollbar pb-24">
+        <!-- 增加 pb-80 (20rem) 以确保有足够的滚动空间，防止被键盘遮挡 -->
+        <div class="modular-panel w-full max-w-md rounded-2xl relative z-10 border border-crypto-border p-6 shadow-2xl animate-slide-up max-h-[85vh] overflow-y-auto hide-scrollbar pb-80">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-white">添加新账户</h3>
                 <button onclick="window.closeCreateAccount()" class="text-crypto-subtext hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
@@ -349,7 +350,7 @@
                     <div class="grid grid-cols-2 gap-3 mt-5">
                         <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
                             <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-up/5 rounded-bl-full -mr-2 -mt-2"></div>
-                            <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益</span>
+                            <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益 (Actual)</span>
                             <span class="text-sm font-bold font-mono text-crypto-up profit-glow" id="yesterday-earnings">+0.00</span>
                         </div>
                         <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
@@ -829,10 +830,20 @@
             document.getElementById('new-acc-icon').value = iconId;
             renderIconSelector(); 
             const nameInput = document.getElementById('new-acc-name');
-            if(!nameInput.value) {
-                const opt = iconOptions.find(o => o.id === iconId);
-                if(opt) nameInput.value = opt.name;
+            // 修复：每次点击图标都更新名称，移除 if(!nameInput.value) 的限制
+            // 查找选中图标的默认名称
+            const opt = iconOptions.find(o => o.id === iconId);
+            if(opt) {
+                // 如果当前名称是空的，或者是其他图标的默认名称，则更新为当前图标的名称
+                // 或者更简单：总是更新。考虑到用户体验，如果用户自己输入了自定义名称，可能不想被覆盖。
+                // 但根据用户反馈“点击微信后再点支付宝名称不自动变”，说明用户期望联动。
+                // 这里的逻辑改为：如果当前名称等于任意一个预设图标的名称，或者为空，则更新。
+                const isDefaultName = !nameInput.value || iconOptions.some(o => o.name === nameInput.value);
+                if (isDefaultName) {
+                    nameInput.value = opt.name;
+                }
             }
+
             const currSelect = document.getElementById('new-acc-currency');
             if(['binance','okx','bitget'].includes(iconId)) currSelect.value = 'USDT';
             else currSelect.value = 'CNY';
@@ -1014,8 +1025,20 @@
             }
         };
 
+        // 修复：每次打开创建窗口都重置所有输入框
         window.openCreateAccount = () => { 
+            // 重置表单
+            document.getElementById('new-acc-name').value = '';
+            document.getElementById('new-acc-balance').value = '0';
+            document.getElementById('new-acc-limit').value = '0';
+            document.getElementById('new-acc-apy').value = '0';
+            document.getElementById('new-acc-excess-apy').value = '0';
+            document.getElementById('new-acc-currency').value = 'CNY';
+            
+            // 重置图标为第一个（支付宝），并触发联动
             document.getElementById('new-acc-icon').value = 'alipay';
+            window.selectIcon('alipay'); // 这也会自动把名称设为 "支付宝"
+
             renderIconSelector();
             document.getElementById('create-account-modal').classList.remove('hidden'); 
             document.getElementById('create-account-modal').classList.add('flex'); 
@@ -1093,15 +1116,6 @@
                 grid.innerHTML = '';
                 state.accounts.forEach(acc => {
                     let est = '';
-                    // 资产卡片上的显示依然可以保留预估值，或者也可以改成显示昨天的实际收益？
-                    // 既然用户强调是根据数据库来的，这里最好也改成昨天的实际收益。
-                    // 为了简单起见，这里先保留预估逻辑显示在卡片上，或者直接显示 APY 信息更合适。
-                    // 用户的原话是针对 "昨日收益" (Total) 是根据数据库来的。
-                    // 这里我们暂时保留预估显示，或者显示 APY 参数，以免误导。
-                    // 但为了响应 "不要前端自动加" 的精神，我们可以在这里仅显示配置的 APY。
-                    
-                    // const dailyYield = calculateProjectedDailyYield(acc); // 移除旧逻辑调用
-                    // const dailyStr = formatSmartYield(dailyYield, acc.id + acc.name);
                     
                     // 改为显示配置信息
                     if (acc.apy > 0) {
@@ -1153,8 +1167,9 @@
                     let iconBgColor = acc ? acc.color : '#161b22';
 
                     if (acc) {
-                        if (acc.id === 'alipay') iconBgColor = '#60a5fa'; 
-                        if (acc.name.toLowerCase().includes('mashreq')) iconBgColor = '#fbbf24'; 
+                        // 修复：支付宝和 Mashreq 在账单列表中背景设为纯白 (#ffffff)
+                        if (acc.id === 'alipay') iconBgColor = '#ffffff'; 
+                        if (acc.name.toLowerCase().includes('mashreq')) iconBgColor = '#ffffff'; 
 
                         const rawIcon = getIconHtml(acc.id, acc.icon, 'white', 'symbol');
                         
@@ -1182,7 +1197,20 @@
                     item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
                     item.onclick = function() { window.handleTxClick(this, t.id); };
                     
-                    item.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div><div><div class="text-sm font-bold text-gray-300">${desc}</div><div class="text-[10px] text-crypto-subtext">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div></div></div><div class="text-right"><div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div><div class="text-[10px] text-crypto-subtext font-mono">${t.currency}</div></div>`;
+                    // 修复：给文字容器添加 min-w-0 和 truncate，防止长文字挤压图标
+                    item.innerHTML = `
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden shrink-0" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-bold text-gray-300 truncate">${desc}</div>
+                                <div class="text-[10px] text-crypto-subtext">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0 ml-2">
+                            <div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div>
+                            <div class="text-[10px] text-crypto-subtext font-mono">${t.currency}</div>
+                        </div>
+                    `;
                     list.appendChild(item);
                 });
             }
@@ -1432,6 +1460,11 @@
             el.classList.add('input-active-highlight');
             const keypad = document.getElementById('universal-keypad');
             keypad.classList.remove('hidden-keypad');
+
+            // 修复：自动滚动，防止输入框被遮挡
+            setTimeout(() => {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
         };
 
         window.closeUniversalKeypad = () => {
