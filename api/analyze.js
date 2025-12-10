@@ -22,17 +22,22 @@ export default async function handler(req, res) {
     const { imageBase64, manualPlatform } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
-    // --- A. 调用 AI ---
+    // --- A. 调用 AI (Prompt 已深度优化) ---
     const systemPrompt = `
-      你是一个专业的会计助手。请分析这张支付截图。
-      请精准提取以下信息并以纯 JSON 格式返回：
-      1. amount: 实付金额（数字，不要符号）。
+      你是一个专业的私人财务助理。请分析这张支付截图。
+      请精准提取以下信息，并对商品名称进行【智能精简】。
+      
+      请返回纯 JSON 格式：
+      1. amount: 实付金额（数字）。
       2. merchant: 商户名称。
-      3. product_name: 商品标题或交易描述。
+      3. product_name: 【核心任务】商品名称备注。
+         - 规则：如果识别到电商平台（拼多多/淘宝）那种堆砌关键词的长标题（例如"女士内裤透明大码全毛露走光丁字裤火"），请务必【提炼】为简洁的人类语言（例如"透明女士内裤"）。
+         - 去除："爆款"、"包邮"、"大码"、"显瘦"、"网红"、"ins风"等营销词汇，除非是商品核心属性。
+         - 保持在 4-8 个字左右最佳。
       4. platform: 支付方式（WeChat, Alipay, UnionPay, Unknown）。
       
       返回格式示例：
-      {"amount": 4.89, "merchant": "拼多多", "product_name": "女士内裤...", "platform": "WeChat"}
+      {"amount": 4.89, "merchant": "拼多多", "product_name": "透明女士内裤", "platform": "WeChat"}
       不要使用 Markdown，直接返回 JSON。
     `;
 
@@ -62,7 +67,7 @@ export default async function handler(req, res) {
     try { data = JSON.parse(cleanJson); } 
     catch (e) { data = { amount: 0, merchant: "未知", product_name: "识别失败", platform: "Unknown" }; }
 
-    // --- B. 读取数据库 ---
+    // --- B. 数据库逻辑 ---
     await signInAnonymously(auth);
     const docRef = doc(db, 'bitledger_storage', 'my_personal_wallet_v2');
     const docSnap = await getDoc(docRef);
@@ -72,48 +77,33 @@ export default async function handler(req, res) {
         transactions: []
     };
 
-    // --- C. 智能账户匹配 (增强版) ---
+    // --- C. 智能账户匹配 ---
     let targetAcc = null;
 
-    // 【修改点1】优先处理手动选择
     if (manualPlatform && manualPlatform !== '自动识别') {
-        // 1.1 精确/模糊匹配：名字里包含你选手项的 (例如选 "Mashreq" 匹配 "Mashreq Bank")
         targetAcc = currentState.accounts.find(a => 
             a.name.toLowerCase().includes(manualPlatform.toLowerCase()) || 
             a.id.toLowerCase().includes(manualPlatform.toLowerCase())
         );
-
-        // 1.2 中文映射匹配
         if (!targetAcc) {
             if (manualPlatform.includes('微信')) targetAcc = currentState.accounts.find(a => a.id.includes('wechat'));
             if (manualPlatform.includes('支付宝')) targetAcc = currentState.accounts.find(a => a.id.includes('alipay'));
         }
-
-        // 【修改点4】通用银行卡匹配 (重点！)
-        // 如果你选的是 "银行卡"、"Card"，或者没匹配到，尝试去找名字里带 "Bank" 或 "银行" 的账户
         if (!targetAcc && (manualPlatform.includes('银行') || manualPlatform.toLowerCase().includes('card') || manualPlatform.toLowerCase().includes('bank'))) {
-             targetAcc = currentState.accounts.find(a => 
-                a.name.includes('银行') || 
-                a.name.toLowerCase().includes('bank') || 
-                a.id.toLowerCase().includes('bank')
-             );
-        }
-    }
-
-    // 【修改点2】AI 自动识别匹配
-    if (!targetAcc) {
-        if (data.platform === 'Alipay') targetAcc = currentState.accounts.find(a => a.name.includes('支付宝') || a.id.includes('alipay'));
-        else if (data.platform === 'WeChat') targetAcc = currentState.accounts.find(a => a.name.includes('微信') || a.id.includes('wechat'));
-        else if (data.platform === 'UnionPay') {
-             // 如果 AI 识别出是云闪付/银联，也优先找银行卡
              targetAcc = currentState.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
         }
     }
 
-    // 【修改点3】终极兜底：实在找不到，默认第一个
+    if (!targetAcc) {
+        if (data.platform === 'Alipay') targetAcc = currentState.accounts.find(a => a.name.includes('支付宝') || a.id.includes('alipay'));
+        else if (data.platform === 'WeChat') targetAcc = currentState.accounts.find(a => a.name.includes('微信') || a.id.includes('wechat'));
+        else if (data.platform === 'UnionPay') targetAcc = currentState.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
+    }
+
     if (!targetAcc) targetAcc = currentState.accounts[0];
 
     // --- D. 写入数据 ---
+    // 这里的 data.product_name 现在已经是 AI 提炼过的简洁版了
     const finalNote = data.product_name && data.product_name.length > 1 ? data.product_name : data.merchant;
 
     const newTx = {
@@ -136,7 +126,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ 
         success: true, 
-        message: `✅ 已记账: -${newTx.amount}\n💳 账户: ${targetAcc.name}\n📝 ${finalNote.substring(0, 8)}...` 
+        // 【修改点】去掉了 .substring() 截断，现在显示完整备注
+        message: `✅ 已记账: -${newTx.amount}\n💳 账户: ${targetAcc.name}\n📝 ${finalNote}` 
     });
 
   } catch (error) {
