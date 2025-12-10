@@ -22,31 +22,37 @@ export default async function handler(req, res) {
     const { imageBase64, manualPlatform } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
-    // --- A. Prompt 逻辑 ---
-    // (这里保持之前的日期修复逻辑，确保日期准确)
+    // --- A. 终极 Prompt：包含精简标题 + 列表识别 + 日期锁定 ---
     const systemPrompt = `
-      你是一个严谨的会计。请分析这张截图（单笔订单 或 账单列表），提取交易数据并返回 JSON 数组。
-      
-      【判断与提取规则】：
-      1. **单笔订单详情**（底部有"实付"或"合计"）：
-         - 返回 1 条记录。
-         - 金额 = 底部实付总额。
-         - 商品名 = 拼接所有具体菜品/商品（如"生菜, 瓜子..."）。
-      
-      2. **账单列表**（多行独立交易）：
-         - 返回多条记录。
-         - 【日期死板规则】：
-           - 列表页一定有"日期头"（如"12月10日"）。该标题下方的所有交易，日期**必须**与标题一致！
-           - 严禁对日期进行递增/递减/猜测。
-           - 如果截图里没有年份，默认 2025。
-           - 如果截图里完全没日期（只有时间），默认视为【今天】。
+      你是一个经验丰富、极其严谨的私人财务助理。请分析这张截图，提取交易数据并返回 JSON 数组。
 
-      3. product_name: 提取商品核心词或商户名。
-      4. platform: 支付方式 (WeChat, Alipay, UnionPay, Unknown)。
+      【第一步：判断图片类型】
+      
+      场景 1：单笔订单详情页 (特征：底部有"实付"、"合计"或"确认交易"按钮，列出了具体的菜品或商品)
+      - **处理规则**：只返回 1 条汇总记录。
+      - **金额**：提取底部最终实付金额（严禁使用原价或优惠前价格）。
+      - **商品名**：将列表中的商品名称拼接（如"生菜, 瓜子, 可乐..."）。
+      
+      场景 2：账单列表页 (特征：有多行独立交易，每行有单独金额)
+      - **处理规则**：返回多条记录。
+      - **日期规则 (至关重要)**：
+        - 列表页通常会有"日期头"（如"12月10日"、"昨天"）。
+        - **该标题下方的所有交易，日期必须强制与标题一致！**
+        - 严禁对日期进行递增或递减。如果某一行没写日期，它就属于它头顶上的那个日期。
+        - 默认年份 2025。如果不显示日期，默认视为【今天】。
+
+      【第二步：数据清洗 (这是你的人设核心)】
+      
+      - **product_name (备注)**：
+        - 如果是电商商品（如拼多多/淘宝），标题通常很长且堆砌关键词（如"夏季爆款冰丝无痕大码女内裤防走光"）。
+        - **请务必进行【智能精简】**，只保留核心商品名（例如精简为："冰丝无痕内裤"）。
+        - 去除："包邮"、"网红"、"显瘦"、"2025新款" 等营销词汇。
+      - **merchant (商户)**：提取店铺名或平台名。
+      - **platform (平台)**：根据界面颜色判断 (绿色=WeChat, 蓝色=Alipay, 红色/银联=UnionPay)。
 
       返回 JSON 示例：
       [
-        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "生菜, 瓜子...", "date": "2025-12-10 18:00:00", "platform": "WeChat"},
+        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "生菜, 瓜子, 可乐...", "date": "2025-12-10 18:00:00", "platform": "WeChat"},
         {"amount": 4.89, "type": "expense", "merchant": "拼多多", "product_name": "透明女士内裤", "date": "2025-12-10 14:00:00", "platform": "Alipay"}
       ]
       不要使用 Markdown，直接返回纯 JSON 字符串。
@@ -95,33 +101,32 @@ export default async function handler(req, res) {
     let successMsg = [];
     let timeOffset = 0;
 
-    // --- C. 核心：超级账户匹配逻辑 ---
+    // --- C. 账户匹配 (含 Mashreq 优先权) ---
     for (const item of items) {
         let targetAcc = null;
         
-        // 1. 优先处理【手动选择】(快捷指令传来的 manualPlatform)
+        // 1. 优先处理【手动选择】
         if (manualPlatform && manualPlatform !== '自动识别') {
             const choice = manualPlatform.toLowerCase();
 
-            // 1.1 精准匹配：名字里包含你选的词
+            // 精准匹配
             targetAcc = currentState.accounts.find(a => 
                 a.name.toLowerCase().includes(choice) || 
                 a.id.toLowerCase().includes(choice)
             );
 
-            // 1.2 中文映射 (防止选中"微信"但账户叫"WeChat")
+            // 中文映射
             if (!targetAcc) {
                 if (manualPlatform.includes('微信')) targetAcc = currentState.accounts.find(a => a.id.includes('wechat'));
                 if (manualPlatform.includes('支付宝')) targetAcc = currentState.accounts.find(a => a.id.includes('alipay'));
             }
 
-            // 1.3 【Mashreq 特权通道】
-            // 如果你选了 "银行卡"、"Bank"、"Card"，我们优先找 Mashreq！
+            // ★ Mashreq 优先匹配逻辑 ★
+            // 如果选了"银行卡"，优先找 Mashreq
             if (!targetAcc && (manualPlatform.includes('银行') || choice.includes('bank') || choice.includes('card'))) {
-                 // 优先找 Mashreq
                  targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
                  
-                 // 如果没找到 Mashreq，再找任意带 "Bank" 或 "银行" 的
+                 // 找不到 Mashreq 再找其他银行
                  if (!targetAcc) {
                      targetAcc = currentState.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
                  }
@@ -130,27 +135,26 @@ export default async function handler(req, res) {
         
         // 2. 其次处理【AI 自动识别】
         if (!targetAcc) {
-            // 2.1 如果 AI 发现商户名里有 Mashreq，直接匹配
-            if (item.merchant.toLowerCase().includes('mashreq')) {
+            // 如果商户名本身就带 Bank/Mashreq
+            if (item.merchant && (item.merchant.toLowerCase().includes('mashreq') || item.merchant.toLowerCase().includes('bank'))) {
                 targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
             }
 
-            // 2.2 常规平台匹配
             if (!targetAcc) {
                 if (item.platform === 'Alipay') targetAcc = currentState.accounts.find(a => a.name.includes('支付宝') || a.id.includes('alipay'));
                 else if (item.platform === 'WeChat') targetAcc = currentState.accounts.find(a => a.name.includes('微信') || a.id.includes('wechat'));
-                else if (item.platform === 'UnionPay') {
-                     // 银联/云闪付 -> 优先找 Mashreq，其次找其他银行
+                else if (item.platform === 'UnionPay' || item.platform === 'Unknown') {
+                     // 银联或未知 -> 优先猜 Mashreq
                      targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
-                     if (!targetAcc) targetAcc = currentState.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
                 }
             }
         }
         
-        // 3. 兜底：还没找到就用第一个
+        // 3. 兜底
         if (!targetAcc) targetAcc = currentState.accounts[0];
 
         // --- 构造数据 ---
+        // 这里的 product_name 已经是经过 AI 精简过的人话了
         const finalNote = item.product_name && item.product_name.length > 1 ? item.product_name : item.merchant;
         const txDate = item.date ? new Date(item.date) : new Date();
         txDate.setMilliseconds(txDate.getMilliseconds() + timeOffset);
@@ -161,7 +165,7 @@ export default async function handler(req, res) {
             type: item.type || 'expense',
             amount: parseFloat(item.amount),
             currency: targetAcc.currency || 'CNY',
-            accountId: targetAcc.id, // 这里只要匹配到了 Mashreq 的 ID，前端就会显示正确的图标
+            accountId: targetAcc.id,
             category: 'shop', 
             date: txDate.toISOString(),
             merchant: item.merchant, 
