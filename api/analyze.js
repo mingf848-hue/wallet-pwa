@@ -22,45 +22,31 @@ export default async function handler(req, res) {
     const { imageBase64, manualPlatform } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
-    // --- A. 逻辑大升级：教 AI 区分“清单”和“列表” ---
+    // --- A. Prompt 逻辑升级：强制修正日期归属 ---
     const systemPrompt = `
-      你是一个高级会计助理。请先【判断图片类型】，然后提取交易数据并返回 JSON 数组。
+      你是一个高级会计助理。请分析这张截图（单笔详情 或 交易列表）。
+      请提取【所有可见的】交易记录，并返回 JSON 数组。
       
-      【判断逻辑】：
+      【关键规则】：
+      1. 判断图片类型：
+         - 如果是【单笔详情页】（底部有“实付”或“合计”），只返回 1 条汇总记录。将具体商品拼接为 product_name。
+         - 如果是【列表页】，返回多条记录。
       
-      场景 A：单笔订单详情页 (例如外卖小票、超市购物单)
-      特征：虽然列出了很多具体商品(如生菜、可乐)，但底部有一个【实付/合计】总金额。
-      处理规则：
-      1. **只返回 1 条交易记录**。
-      2. **amount**: 提取底部的【实付金额】(例如 135.03)。严禁使用左边的“优惠后”或“原价”。
-      3. **product_name**: 将列表中的商品名称拼接起来作为备注 (例如 "生菜, 瓜子, 可乐, 调料...")。精简掉无用修饰词。
-      4. **merchant**: 提取顶部的店铺名。
-      
-      场景 B：历史账单列表页 (例如微信/支付宝/拼多多订单列表)
-      特征：每一行代表不同时间、不同商家的独立交易。
-      处理规则：
-      1. **返回多条交易记录**。
-      2. 提取每一行的金额、商户、状态。
-      3. 如果有"退款"字样，标记 type: 'income' (收入)，否则为 'expense'。
+      2. 【日期识别 - 必须严格执行】：
+         - 列表页通常会有日期标题（如 "12月10日"、"昨天"、"本月"）。
+         - **在此标题下方的所有交易，日期都必须与标题一致！**
+         - 严禁对日期进行递减或猜测。如果一行没有日期，它一定属于上方最近的一个日期标题。
+         - 年份默认 2025。
+         - 如果截图里没有具体日期（只有时间），则默认视为【今天】。
 
-      ----------------
-      
-      通用字段要求：
-      1. date: 交易时间 (YYYY-MM-DD HH:mm:ss)。列表页如果没年份默认 2025。
-      2. platform: 支付方式 (WeChat, Alipay, UnionPay, Unknown)。
-      3. type: 'expense' 或 'income'。
+      3. product_name: 提取商品名或商户名，如果是电商长标题请提炼核心词。
+      4. platform: 支付方式 (WeChat, Alipay 等)。
 
-      返回 JSON 示例 (单笔订单场景)：
+      返回 JSON 示例：
       [
-        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "圆西生菜, 瓜子仁, 百事可乐...", "date": "2025-12-10 18:00:00", "platform": "WeChat"}
+        {"amount": 135.03, "type": "expense", "merchant": "蜜雪冰城", "product_name": "圆西生菜, 瓜子仁...", "date": "2025-12-10 18:00:00", "platform": "WeChat"},
+        {"amount": 4.89, "type": "expense", "merchant": "拼多多", "product_name": "透明女士内裤", "date": "2025-12-10 14:00:00", "platform": "Alipay"}
       ]
-
-      返回 JSON 示例 (列表场景)：
-      [
-        {"amount": 12.00, "type": "expense", "merchant": "闲鱼", "product_name": "学生认证", "date": "2025-11-25 18:09:00", "platform": "Alipay"},
-        {"amount": 36.00, "type": "income", "merchant": "拼多多", "product_name": "退款", "date": "2025-12-10 04:08:00", "platform": "WeChat"}
-      ]
-      
       不要使用 Markdown，直接返回 JSON 字符串。
     `;
 
@@ -94,7 +80,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "AI 解析失败" });
     }
 
-    // --- B. 数据库写入逻辑 (保持不变，支持批量) ---
+    // --- B. 数据库写入 ---
     await signInAnonymously(auth);
     const docRef = doc(db, 'bitledger_storage', 'my_personal_wallet_v2');
     const docSnap = await getDoc(docRef);
@@ -105,6 +91,7 @@ export default async function handler(req, res) {
     };
 
     let successMsg = [];
+    // 这里的偏移量只用于毫秒级微调，不改变日期
     let timeOffset = 0;
 
     for (const item of items) {
@@ -171,7 +158,6 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("Server Error:", error);
     return res.status(500).json({ error: error.message });
   }
 }
