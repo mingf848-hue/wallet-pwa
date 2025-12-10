@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V10.6 (Fixed Icon & Logic)</title>
+    <title>BitLedger Pro V11.2 (Auto Hide FAB)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -194,13 +194,13 @@
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
 
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-white hidden">
+    <!-- Loading Overlay (Visible initially to prevent early clicks) -->
+    <div id="loading-overlay" class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-white flex">
         <div class="relative w-16 h-16 mb-6">
             <div class="absolute inset-0 rounded-full border-2 border-crypto-primary opacity-20"></div>
             <div class="absolute inset-0 rounded-full border-t-2 border-crypto-primary animate-spin"></div>
         </div>
-        <p class="font-mono text-crypto-primary text-sm uppercase tracking-widest" id="loading-text">Loading...</p>
+        <p class="font-mono text-crypto-primary text-sm uppercase tracking-widest" id="loading-text">Synchronizing...</p>
     </div>
 
     <!-- Transaction Detail Modal -->
@@ -386,7 +386,7 @@
                 <span class="text-[10px]">账单</span>
             </button>
             
-            <div class="relative mb-8"> 
+            <div id="add-btn-wrapper" class="relative mb-8 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform origin-center"> 
                 <button onclick="window.openAddModal('expense')" class="w-14 h-14 bg-crypto-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] active:scale-95 transition-transform border-4 border-crypto-bg group hover:scale-105">
                     <i class="fa-solid fa-plus text-xl group-active:rotate-90 transition-transform duration-300"></i>
                 </button>
@@ -544,7 +544,7 @@
             </div>
         </div>
 
-        <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-crypto-card border border-crypto-primary text-crypto-primary px-6 py-3 rounded-full text-sm font-mono hidden z-[90] shadow-lg shadow-crypto-primary/20 flex items-center gap-2">
+        <div id="toast" class="fixed top-28 left-1/2 -translate-x-1/2 bg-crypto-card border border-crypto-primary text-crypto-primary px-6 py-3 rounded-full text-sm font-mono hidden z-[90] shadow-lg shadow-crypto-primary/20 flex items-center gap-2">
             <i class="fa-solid fa-check-circle"></i><span id="toast-msg">Success</span>
         </div>
 
@@ -591,6 +591,9 @@
         let unsubscribeDoc = null;
         let currentTab = 'bills'; 
         const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2'; 
+
+        // --- 安全锁：防止在数据库加载完成前覆盖数据 ---
+        let isRemoteDataLoaded = false;
 
         let activeKeypadInputId = null;
 
@@ -704,9 +707,9 @@
             } catch (e) { console.error("Init failed", e); } 
             finally {
                 await fetchExchangeRate();
+                // 修复：移除强制跳转到 'bills' 的逻辑，保持当前视图
                 renderHome();
                 renderIconSelector(); 
-                window.switchTab('bills');
             }
         }
 
@@ -716,15 +719,22 @@
             const assetsBtn = document.getElementById('nav-assets');
             const billsView = document.getElementById('view-bills');
             const assetsView = document.getElementById('view-assets');
-            
+            const fab = document.getElementById('add-btn-wrapper'); 
+
             if (tab === 'bills') {
                 billsBtn.className = "nav-btn active flex flex-col items-center justify-center text-crypto-primary transition-colors";
                 assetsBtn.className = "nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors";
                 billsView.classList.add('active'); assetsView.classList.remove('active');
+                
+                // Show FAB
+                if(fab) fab.classList.remove('scale-0', 'opacity-0', 'pointer-events-none');
             } else {
                 assetsBtn.className = "nav-btn active flex flex-col items-center justify-center text-crypto-primary transition-colors";
                 billsBtn.className = "nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors";
                 assetsView.classList.add('active'); billsView.classList.remove('active');
+                
+                // Hide FAB
+                if(fab) fab.classList.add('scale-0', 'opacity-0', 'pointer-events-none');
             }
             renderHome();
         };
@@ -734,6 +744,10 @@
             const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
             unsubscribeDoc = onSnapshot(docRef, async (docSnap) => {
                 document.getElementById('loading-overlay').classList.add('hidden');
+                
+                // 核心修复：标记远程数据已加载
+                isRemoteDataLoaded = true;
+
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if(data.state) {
@@ -743,12 +757,24 @@
                         localStorage.setItem(CACHE_KEY, JSON.stringify(state));
                         renderHome();
                     }
-                } else { saveData(); }
+                } else { 
+                    // 如果远程没有数据，可能是第一次初始化，允许写入
+                    // 但为了防止覆盖，我们这里不自动覆盖，只是标记加载完成
+                    console.log("Remote doc not found, treating as new user");
+                }
             }, (error) => { console.error("Sync error", error); document.getElementById('loading-overlay').classList.add('hidden'); });
         }
 
         async function saveData() {
             if (!db) return;
+            
+            // 核心修复：如果没有成功从服务器拉取到数据，禁止写入，防止空数据覆盖远程数据
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后再试...");
+                console.warn("Attempted to save before remote data loaded. Aborted.");
+                return;
+            }
+
             const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
             const cleanState = JSON.parse(JSON.stringify(state));
             try { await setDoc(docRef, { state: cleanState, updatedAt: new Date() }); localStorage.setItem(CACHE_KEY, JSON.stringify(state)); renderHome(); } 
@@ -920,6 +946,13 @@
 
         window.deleteCurrentTransaction = () => {
             if(!selectedTxId) return;
+            
+            // 安全检查
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+
             const btn = document.getElementById('btn-delete-tx');
             if(!deleteConfirmState) {
                 deleteConfirmState = true;
@@ -962,6 +995,12 @@
         };
         
         window.confirmCreateAccount = () => {
+            // 安全检查
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+
             const name = document.getElementById('new-acc-name').value.trim();
             const icon = document.getElementById('new-acc-icon').value; 
             const currency = document.getElementById('new-acc-currency').value;
@@ -1069,24 +1108,24 @@
                     let iconBgColor = acc ? acc.color : '#161b22';
 
                     if (acc) {
-                        // --- 核心修复：现在通过 ICON 类型判断，而不是 ID ---
-                        if (acc.icon === 'alipay') {
-                            const alipayUrl = "https://upload.wikimedia.org/wikipedia/en/d/dd/Alipay_logo_%282024%29.svg";
-                            iconDisplay = `<img src="${alipayUrl}" class="w-full h-full object-contain p-1.5" alt="Alipay" onerror="this.onerror=null; this.src='https://placehold.co/400x400?text=Alipay';">`;
-                            iconBgColor = '#ffffff'; // 强制白底
-                        } else if (acc.name && acc.name.toLowerCase().includes('mashreq')) {
-                             const rawIcon = getIconHtml(acc.id, acc.icon, acc.color, 'symbol'); 
-                             iconDisplay = `<div class="w-5 h-5 flex items-center justify-center overflow-hidden">${rawIcon}</div>`;
-                             iconBgColor = '#ffffff'; // 强制白底
-                        } else {
-                            const rawIcon = getIconHtml(acc.id, acc.icon, acc.color, 'symbol');
-                            iconDisplay = `<div class="w-5 h-5 flex items-center justify-center overflow-hidden">${rawIcon}</div>`;
-                        }
-                    } else iconDisplay = `<i class="fa-solid fa-question text-gray-500"></i>`;
+                        if (acc.id === 'alipay') iconBgColor = '#60a5fa'; 
+                        if (acc.name.toLowerCase().includes('mashreq')) iconBgColor = '#fbbf24'; 
+
+                        const rawIcon = getIconHtml(acc.id, acc.icon, 'white', 'symbol');
+                        
+                        iconDisplay = `
+                            <div class="w-full h-full rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md p-2 shadow-inner">
+                                ${rawIcon}
+                            </div>
+                        `;
+                    } else {
+                        iconDisplay = `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-question text-gray-500"></i></div>`;
+                    }
 
                     if (t.category === 'interest') desc = `${acc ? acc.name : ''} 理财收益`; 
                     else if (t.category === 'correction') desc = "余额人工修正";
-                    else if (t.type === 'transfer') { const toAcc = state.accounts.find(a => a.id === t.targetAccountId); desc = `划转至 ${toAcc ? toAcc.name : 'Unknown'}`; iconDisplay = `<i class="fa-solid fa-arrow-right-arrow-left text-crypto-primary text-xs"></i>`; }
+                    else if (t.type === 'transfer') { const toAcc = state.accounts.find(a => a.id === t.targetAccountId); desc = `划转至 ${toAcc ? toAcc.name : 'Unknown'}`; iconDisplay = `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-arrow-left text-crypto-primary text-xs"></i></div>`; }
+                    
                     let displayAmount = t.amount.toFixed(2);
                     if (acc) {
                         const isOKX = (acc.id + acc.name).toLowerCase().includes('okx');
@@ -1097,6 +1136,7 @@
                     const item = document.createElement('div');
                     item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
                     item.onclick = function() { window.handleTxClick(this, t.id); };
+                    
                     item.innerHTML = `<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div><div><div class="text-sm font-bold text-gray-300">${desc}</div><div class="text-[10px] text-crypto-subtext">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div></div></div><div class="text-right"><div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div><div class="text-[10px] text-crypto-subtext font-mono">${t.currency}</div></div>`;
                     list.appendChild(item);
                 });
@@ -1125,7 +1165,8 @@
             if (iconName === 'bitget') return `<img src="https://cdn.brandfetch.io/ide1GqodMV/theme/dark/id7REbdlo0.svg?c=1bxid64Mup7aczewSAYMX&t=1762340715926" class="${imgClass}" alt="Bitget">`;
             if (iconName === 'alipay') {
                 if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idTglJWN-B/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1712303046444" class="${imgClass}" alt="Alipay">`;
-                return `<img src="https://cdn.brandfetch.io/idTglJWN-B/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1712303046641" class="${imgClass}" alt="Alipay">`;
+                // --- Keep Wikimedia SVG for Alipay ---
+                return `<img src="https://upload.wikimedia.org/wikipedia/en/d/dd/Alipay_logo_%282024%29.svg" class="${imgClass}" alt="Alipay">`;
             }
             if (iconName === 'wechat') {
                 const wechatUrl = "https://cdn.jsdelivr.net/gh/mingf848-hue/iconelf@main/wechat-logo-1.svg";
