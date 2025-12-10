@@ -1,4 +1,35 @@
-// --- A. Prompt: 去除平台判断，保持“所见即所得” ---
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAMq8_hpoVSP5ULfou1w4psq94d5bEjCIY",
+  authDomain: "wallet-ff0d5.firebaseapp.com",
+  projectId: "wallet-ff0d5",
+  storageBucket: "wallet-ff0d5.firebasestorage.app",
+  messagingSenderId: "152393317434",
+  appId: "1:152393317434:web:13f49e309db57f75f54903"
+};
+
+// 防止重复初始化
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+export default async function handler(req, res) {
+  // 只允许 POST 请求
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
+  try {
+    // 1. 接收前端参数
+    const { imageBase64, manualPlatform, transactionTime } = req.body; 
+    if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+
+    const currentYear = new Date().getFullYear();
+    // 优先使用 iPhone 传来的时间，如果没有则用当前服务器时间
+    const iphoneTime = transactionTime ? new Date(transactionTime) : new Date(); 
+
+    // 2. 定义 System Prompt (去除了平台判断，强调所见即所得)
     const systemPrompt = `
       你是一个经验丰富、极其严谨的私人财务助理。你的任务是精准分析支付截图，提取交易数据。
 
@@ -36,13 +67,63 @@
       不要使用 Markdown，直接返回纯 JSON 字符串。
     `;
 
-    // ... (中间发起 fetch 请求的代码保持不变) ...
+    // 3. 调用 AI 接口
+    const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/v1beta/models/gemini-1.5-flash:generateContent";
+    
+    const payload = {
+      contents: [{
+        parts: [
+          { text: systemPrompt },
+          { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
+        ]
+      }]
+    };
 
-    // --- C. 核心逻辑：账户匹配 & 时间优先级 (已移除 item.platform 相关逻辑) ---
+    const aiRes = await fetch(proxyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!aiRes.ok) throw new Error("AI Request Failed: " + aiRes.statusText);
+    
+    const aiData = await aiRes.json();
+    
+    // 安全检查：确保 AI 返回了有效数据
+    if (!aiData.candidates || !aiData.candidates[0].content) {
+        throw new Error("AI response format error");
+    }
+
+    const rawText = aiData.candidates[0].content.parts[0].text;
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let items = [];
+    try {
+        const parsed = JSON.parse(cleanJson);
+        items = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+        console.error("JSON Parse Error:", rawText);
+        return res.status(500).json({ error: "AI 返回的数据格式无法解析" });
+    }
+
+    // 4. 读取 Firebase 数据库
+    await signInAnonymously(auth);
+    const docRef = doc(db, 'bitledger_storage', 'my_personal_wallet_v2');
+    const docSnap = await getDoc(docRef);
+    
+    let currentState = docSnap.exists() ? docSnap.data().state : {
+        accounts: [{ id: 'alipay', name: '支付宝', balance: 0 }],
+        transactions: []
+    };
+
+    let successMsg = [];
+    let timeOffset = 0; 
+    
+    // 5. 遍历处理每一笔交易 (新的账户匹配逻辑)
     for (const item of items) {
         let targetAcc = null;
 
-        // 1. 优先使用前端传来的 manualPlatform (点击的那个按钮)
+        // --- 逻辑 A: 优先使用前端手动选择 (manualPlatform) ---
         if (manualPlatform && manualPlatform !== '自动识别') {
             const choice = manualPlatform.toLowerCase();
             targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes(choice) || a.id.toLowerCase().includes(choice));
@@ -59,19 +140,19 @@
             }
         }
 
-        // 2. 如果没有手动指定，或者手动指定没找到，尝试根据【商户名】匹配 (比如商户名包含 Mashreq)
+        // --- 逻辑 B: 如果没有手动指定，尝试根据商户名匹配 ---
         if (!targetAcc) {
             if (item.merchant && (item.merchant.toLowerCase().includes('mashreq') || item.merchant.toLowerCase().includes('bank'))) {
                 targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
             }
         }
 
-        // 3. 实在匹配不到，使用默认账户 (数组第一个)
+        // --- 逻辑 C: 兜底使用第一个账户 ---
         if (!targetAcc) targetAcc = currentState.accounts[0];
 
         const finalNote = item.product_name && item.product_name.length > 1 ? item.product_name : item.merchant;
         
-        // ★★★ 核心逻辑：时间优先级判断 ★★★
+        // --- 时间处理 ---
         let finalTxDate = new Date(iphoneTime); 
         
         if (item.date) {
@@ -88,6 +169,7 @@
         finalTxDate.setMilliseconds(finalTxDate.getMilliseconds() - timeOffset);
         timeOffset += 100;
 
+        // 构建交易对象
         const newTx = {
             id: Date.now() - timeOffset + Math.random(), 
             type: item.type || 'expense',
@@ -100,6 +182,7 @@
             note: finalNote
         };
 
+        // 更新余额
         const accIndex = currentState.accounts.findIndex(a => a.id === targetAcc.id);
         if (accIndex !== -1) {
             if (newTx.type === 'expense') currentState.accounts[accIndex].balance -= newTx.amount;
@@ -109,3 +192,20 @@
         currentState.transactions.push(newTx);
         successMsg.push(`${item.merchant} ${newTx.type==='income'?'+':'-'}${newTx.amount}`);
     }
+
+    // 6. 保存回 Firebase
+    await setDoc(docRef, { state: currentState, updatedAt: new Date() });
+
+    let displayMsg = successMsg.slice(0, 3).join('\n');
+    if (successMsg.length > 3) displayMsg += `\n...还有 ${successMsg.length - 3} 笔`;
+
+    return res.status(200).json({ 
+        success: true, 
+        message: `✅ 记账成功 (${successMsg.length}笔)\n----------------\n${displayMsg}` 
+    });
+
+  } catch (error) {
+    console.error("Handler Error:", error);
+    return res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
+}
