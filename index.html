@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V11.2 (Auto Hide FAB)</title>
+    <title>BitLedger Pro V11.3 (Real Yield & Precision Fix)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -641,19 +641,46 @@
         let editingId = null; 
         let deleteConfirmState = false;
 
-        function calculateProjectedDailyYield(acc) {
-            const bal = acc.balance;
-            if (bal <= 0) return 0;
-            const limit = parseFloat(acc.tierLimit) || 0; 
-            const baseRate = parseFloat(acc.apy || 0) / 100;      
-            const excessRate = parseFloat(acc.excessApy || 0) / 100; 
-            let dailyInterest = 0;
-            if (limit > 0 && bal > limit) {
-                dailyInterest = (limit * baseRate) / 365 + ((bal - limit) * excessRate) / 365;
-            } else {
-                dailyInterest = (bal * baseRate) / 365;
-            }
-            return dailyInterest;
+        // 核心修复1：修改“昨日收益”逻辑
+        function getYesterdayInterest() {
+            // 获取昨天0点到23:59:59的时间范围
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+            
+            const yesterdayEnd = new Date(yesterday);
+            yesterdayEnd.setHours(23, 59, 59, 999);
+
+            // 过滤出昨天的理财收益账单
+            const interestTxs = state.transactions.filter(t => {
+                const txDate = new Date(t.date);
+                // 确保类别是 'interest' 且时间在昨天范围内
+                return t.category === 'interest' && txDate >= yesterday && txDate <= yesterdayEnd;
+            });
+
+            // 汇总金额 (统一转为 CNY)
+            let totalInterest = 0;
+            interestTxs.forEach(t => {
+                totalInterest += convertCurrency(t.amount, t.currency, 'CNY');
+            });
+            
+            return totalInterest;
+        }
+
+        // 核心修复2：辅助函数，安全浮点数运算
+        function safeFloatMath(a, b, op) {
+            const numA = new Decimal(a || 0);
+            const numB = new Decimal(b || 0);
+            let res;
+            if (op === '+') res = numA.plus(numB);
+            else if (op === '-') res = numA.minus(numB);
+            else return a; // fallback
+            return res.toNumber();
+        }
+        
+        // 简单版精度修复 (不依赖外部库，足以应付常规 8 位小数)
+        function fixPrecision(num) {
+            return parseFloat(num.toFixed(8));
         }
 
         function formatSmartYield(num, accIdOrName) {
@@ -964,14 +991,19 @@
             if(tx) {
                 const acc = state.accounts.find(a => a.id === tx.accountId);
                 if(acc) {
-                    if (tx.type === 'expense') acc.balance += tx.amount;
-                    else if (tx.type === 'income') acc.balance -= tx.amount;
+                    // 修复余额精度问题：删除账单时，回滚操作也要进行精度修正
+                    if (tx.type === 'expense') {
+                        acc.balance = fixPrecision(acc.balance + tx.amount);
+                    }
+                    else if (tx.type === 'income') {
+                        acc.balance = fixPrecision(acc.balance - tx.amount);
+                    }
                     else if (tx.type === 'transfer') {
                         const targetAcc = state.accounts.find(a => a.id === tx.targetAccountId);
-                        acc.balance += tx.amount;
+                        acc.balance = fixPrecision(acc.balance + tx.amount);
                         if(targetAcc) {
                             let revertAmount = convertCurrency(tx.amount, acc.currency, targetAcc.currency);
-                            targetAcc.balance -= revertAmount;
+                            targetAcc.balance = fixPrecision(targetAcc.balance - revertAmount);
                         }
                     }
                 }
@@ -1041,20 +1073,18 @@
             state.accounts.forEach(acc => { totalCNY += convertCurrency(acc.balance, acc.currency, 'CNY'); });
             document.getElementById('total-asset-display').innerText = state.privacyMode ? '****' : `≈ ${totalCNY.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
-            let totalProjectedDailyCNY = 0;
-            state.accounts.forEach(acc => {
-                const dailyVal = calculateProjectedDailyYield(acc);
-                totalProjectedDailyCNY += convertCurrency(dailyVal, acc.currency, 'CNY');
-            });
+            // 修改：不再使用 calculateProjectedDailyYield，而是使用真实账单统计
+            const totalActualYesterdayCNY = getYesterdayInterest();
 
             let allTimeTotal = 0;
             const interestTxs = state.transactions.filter(t => t.category === 'interest');
             interestTxs.forEach(t => { allTimeTotal += convertCurrency(t.amount, t.currency, 'CNY'); });
 
             const yesterdayLabel = document.querySelector("#yesterday-earnings").previousElementSibling;
-            if(yesterdayLabel) yesterdayLabel.innerText = "预计单日收益 (Live)";
+            if(yesterdayLabel) yesterdayLabel.innerText = "昨日理财收益 (Actual)"; // 提示这是实际数据
 
-            document.getElementById('yesterday-earnings').innerText = state.privacyMode ? '****' : `+${totalProjectedDailyCNY.toFixed(2)}`;
+            // 显示实际统计的昨日收益
+            document.getElementById('yesterday-earnings').innerText = state.privacyMode ? '****' : `+${totalActualYesterdayCNY.toFixed(2)}`;
             document.getElementById('yesterday-earnings').classList.remove('profit-glow'); 
             document.getElementById('total-earnings').innerText = state.privacyMode ? '****' : `+${allTimeTotal.toFixed(2)}`;
 
@@ -1063,9 +1093,24 @@
                 grid.innerHTML = '';
                 state.accounts.forEach(acc => {
                     let est = '';
-                    const dailyYield = calculateProjectedDailyYield(acc);
-                    const dailyStr = formatSmartYield(dailyYield, acc.id + acc.name);
-                    if (acc.currency !== 'CNY') est = `Day: +${dailyStr} ${acc.currency}`; else est = `Day: +${dailyStr}`;
+                    // 资产卡片上的显示依然可以保留预估值，或者也可以改成显示昨天的实际收益？
+                    // 既然用户强调是根据数据库来的，这里最好也改成昨天的实际收益。
+                    // 为了简单起见，这里先保留预估逻辑显示在卡片上，或者直接显示 APY 信息更合适。
+                    // 用户的原话是针对 "昨日收益" (Total) 是根据数据库来的。
+                    // 这里我们暂时保留预估显示，或者显示 APY 参数，以免误导。
+                    // 但为了响应 "不要前端自动加" 的精神，我们可以在这里仅显示配置的 APY。
+                    
+                    // const dailyYield = calculateProjectedDailyYield(acc); // 移除旧逻辑调用
+                    // const dailyStr = formatSmartYield(dailyYield, acc.id + acc.name);
+                    
+                    // 改为显示配置信息
+                    if (acc.apy > 0) {
+                         est = `APY: ${acc.apy}%`;
+                         if(acc.excessApy > 0) est += `~${acc.excessApy}%`;
+                    } else {
+                        est = 'No Yield';
+                    }
+
                     let balStr = '';
                     const isOKX = (acc.id + acc.name).toLowerCase().includes('okx');
                     const isCNY = acc.currency === 'CNY';
@@ -1165,7 +1210,6 @@
             if (iconName === 'bitget') return `<img src="https://cdn.brandfetch.io/ide1GqodMV/theme/dark/id7REbdlo0.svg?c=1bxid64Mup7aczewSAYMX&t=1762340715926" class="${imgClass}" alt="Bitget">`;
             if (iconName === 'alipay') {
                 if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idTglJWN-B/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1712303046444" class="${imgClass}" alt="Alipay">`;
-                // --- Keep Wikimedia SVG for Alipay ---
                 return `<img src="https://upload.wikimedia.org/wikipedia/en/d/dd/Alipay_logo_%282024%29.svg" class="${imgClass}" alt="Alipay">`;
             }
             if (iconName === 'wechat') {
@@ -1230,6 +1274,13 @@
       
         window.saveAccountSettings = () => {
             if (!editingId) return;
+            
+            // 安全检查
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+
             const acc = state.accounts.find(a => a.id === editingId);
             if (!acc) { window.closeAccountModal(); return; }
             const nameInput = document.getElementById('edit-acc-name').value.trim();
@@ -1274,6 +1325,13 @@
 
         window.deleteAccount = () => {
             if (!editingId) return;
+            
+            // 安全检查
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+
             const btn = document.getElementById('btn-delete-acc');
             if (!deleteConfirmState) {
                 deleteConfirmState = true;
@@ -1404,17 +1462,34 @@
             if (amount <= 0) return showToast('金额无效');
             const fromAcc = state.accounts.find(a => a.id === temp.accountId);
             if (!fromAcc) return showToast('请先创建账户');
+            
+            // 安全检查
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+
             const note = document.getElementById('input-note').value;
             const date = new Date();
             if (temp.type === 'transfer') {
                 const toAcc = state.accounts.find(a => a.id === temp.targetAccountId);
                 if (fromAcc.id === toAcc.id) return showToast('账户相同');
-                fromAcc.balance -= amount;
+                // 修复余额精度
+                fromAcc.balance = fixPrecision(fromAcc.balance - amount);
+                
                 let finalAmount = convertCurrency(amount, fromAcc.currency, toAcc.currency);
-                toAcc.balance += finalAmount;
+                // 修复余额精度
+                toAcc.balance = fixPrecision(toAcc.balance + finalAmount);
+                
                 state.transactions.push({ id: Date.now(), type: 'transfer', amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, targetAccountId: toAcc.id, date: date, note: note || `划转 ${amount} ${fromAcc.currency} 到 ${toAcc.name}` });
             } else {
-                if (temp.type === 'expense') fromAcc.balance -= amount; else fromAcc.balance += amount;
+                if (temp.type === 'expense') {
+                    // 修复余额精度
+                    fromAcc.balance = fixPrecision(fromAcc.balance - amount);
+                } else {
+                    // 修复余额精度
+                    fromAcc.balance = fixPrecision(fromAcc.balance + amount);
+                }
                 state.transactions.push({ id: Date.now(), type: temp.type, amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, category: temp.catId, date: date, note: note });
             }
             saveData(); window.closeAddModal(); showToast('操作成功');
