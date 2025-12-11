@@ -918,7 +918,7 @@
 
         async function init() {
             loadFromCache();
-            populateDateSelector(); 
+
             try {
                 const firebaseConfig = {
                   apiKey: "AIzaSyAMq8_hpoVSP5ULfou1w4psq94d5bEjCIY",
@@ -928,23 +928,35 @@
                   messagingSenderId: "152393317434",
                   appId: "1:152393317434:web:13f49e309db57f75f54903"
                 };
+
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
-                
-                try { await signInAnonymously(auth); } catch (authError) { console.error("Auth Failed", authError); }
+                const appId = 'bitledger_core';
 
-                onAuthStateChanged(auth, (user) => {
+                try {
+                    await signInAnonymously(auth);
+                } catch (authError) {
+                    console.error("Auth Failed", authError);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         currentUser = user;
-                        setupFixedRealtimeSync('bitledger_core');
+                        setupFixedRealtimeSync(appId);
+                        
+                        // ★★★ 关键修改：登录成功后，立刻去云端拉取最新汇率 ★★★
+                        await fetchExchangeRate(); 
                     }
                 });
-            } catch (e) { console.error("Init failed", e); } 
-            finally {
-                await fetchExchangeRate();
+
+            } catch (e) {
+                console.error("Init failed", e);
+            } finally {
+                // 移除了这里的 await fetchExchangeRate(); 避免未登录时调用
                 renderHome();
                 renderIconSelector(); 
+                window.switchTab('bills'); 
             }
         }
 
@@ -1330,17 +1342,47 @@
         async function fetchExchangeRate() {
             const display = document.getElementById('rate-display');
             if(display.innerText === '...') display.innerText = '...';
+            
             try {
+                // 1. 优先尝试从 Firebase 读取后端抓取的“真实 C2C 汇率”
+                if (db) {
+                    const docRef = doc(db, 'bitledger_storage', 'global_config');
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists() && docSnap.data().rates) {
+                        const rates = docSnap.data().rates;
+                        
+                        // 更新全局汇率变量
+                        if (rates.USDT) exchangeRates.USDT = rates.USDT;
+                        if (rates.AED) exchangeRates.AED = rates.AED; 
+                        
+                        // 更新 UI 显示
+                        display.innerText = exchangeRates.USDT.toFixed(2);
+                        
+                        // 缓存到本地，下次秒开
+                        localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(exchangeRates));
+                        console.log(`✅ 汇率已同步 (Binance C2C): USDT=${exchangeRates.USDT}, AED=${exchangeRates.AED}`);
+                        renderHome();
+                        return; // 成功获取后直接返回，不走下面的 CoinGecko
+                    }
+                }
+
+                // 2. (兜底) 如果 Firebase 没读到，退回到 CoinGecko
+                console.log("⚠️ 云端汇率未就绪，使用 CoinGecko 兜底");
                 const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=cny');
                 if(!res.ok) throw new Error('API Error');
                 const data = await res.json();
                 if(data.tether && data.tether.cny) {
                     exchangeRates.USDT = data.tether.cny;
-                    exchangeRates.AED = exchangeRates.USDT / 3.6725;
+                    // 如果没抓到 AED，就用默认挂钩汇率
+                    if (!exchangeRates.AED) exchangeRates.AED = exchangeRates.USDT / 3.6725;
+                    
                     display.innerText = exchangeRates.USDT.toFixed(2);
                     localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(exchangeRates));
                 }
-            } catch (e) { console.warn('Rate fetch failed', e); }
+            } catch (e) {
+                console.warn('Rate fetch failed', e);
+            }
             renderHome(); 
         }
         window.fetchExchangeRate = fetchExchangeRate;
