@@ -1,5 +1,5 @@
 // 1. 修改版本号 (每次发布新功能，最好改一下这个数字，比如 v1 -> v2)
-const CACHE_NAME = 'bitledger-v2.4';
+const CACHE_NAME = 'bitledger-v2.5';
 
 const urlsToCache = [
   './',
