@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V12.5 (Ultimate UI)</title>
+    <title>BitLedger Pro V12.6 (iOS Fix)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -60,7 +60,7 @@
           }
         }, { passive: false });
     </script>
-
+  
     <style>
         /* --- 核心基础样式 --- */
         * {
@@ -168,24 +168,22 @@
         .animate-scale-up { animation: scale-up 0.2s var(--ease-out-expo) forwards; }
         @keyframes scale-up { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* --- 新增：具有设计感的分割线 (The Fancy Separator) --- */
+        /* --- 设计感分割线 --- */
         .content-divider-container {
             position: relative;
             z-index: 20;
             height: 24px;
             flex-shrink: 0;
-            margin-top: -12px; /* 向上重叠，制造融合感 */
+            margin-top: -12px;
             pointer-events: none;
             overflow: visible;
         }
-        /* 顶部渐变遮罩 */
         .content-divider-mask {
             position: absolute;
             top: 0; left: 0; right: 0;
             height: 100%;
             background: linear-gradient(to bottom, #0d1117 0%, rgba(13, 17, 23, 0) 100%);
         }
-        /* 光感线条 */
         .content-divider-line {
             position: absolute;
             top: 50%; left: 50%;
@@ -194,7 +192,6 @@
             height: 1px;
             background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.1) 80%, transparent 100%);
         }
-        /* 胶囊指示器 */
         .content-divider-pill {
             position: absolute;
             top: 50%; left: 50%;
@@ -240,7 +237,6 @@
             overflow: hidden !important; 
             -ms-overflow-style: none; scrollbar-width: none;
             will-change: transform;
-            /* 物理摩擦感 */
             transition-timing-function: cubic-bezier(0.1, 0.57, 0.1, 1);
         }
         #year-list::-webkit-scrollbar, #month-list::-webkit-scrollbar { display: none; }
@@ -435,7 +431,7 @@
                         </div>
                     </div>
 
-                    <!-- [NEW] 设计感分割线 -->
+                    <!-- 设计感分割线 -->
                     <div class="content-divider-container">
                         <div class="content-divider-mask"></div>
                         <div class="content-divider-line"></div>
@@ -488,7 +484,7 @@
                         </div>
                     </div>
 
-                    <!-- [NEW] 设计感分割线 -->
+                    <!-- 设计感分割线 -->
                     <div class="content-divider-container">
                         <div class="content-divider-mask"></div>
                         <div class="content-divider-line"></div>
@@ -962,7 +958,10 @@
             renderHome();
         };
 
+        // --- 修复1: Tab 切换防抖 ---
         window.switchTab = (tab) => {
+            if (currentTab === tab) return; // 核心修复：如果在当前页，不执行任何操作
+
             currentTab = tab;
             const billsBtn = document.getElementById('nav-bills');
             const assetsBtn = document.getElementById('nav-assets');
@@ -1034,47 +1033,62 @@
             catch(e) { console.error("Save failed", e); showToast("保存失败"); }
         }
         
+        // --- 修复2: 图标选择器优化 ---
         function renderIconSelector() {
             const container = document.getElementById('icon-selector-grid');
             const currentVal = document.getElementById('new-acc-icon').value || 'alipay';
             
+            // 1. 仅当容器为空时，构建 DOM 结构 (初始化)
             if (container.children.length !== iconOptions.length) {
                 container.innerHTML = '';
                 iconOptions.forEach(opt => {
                     const el = document.createElement('div');
                     el.id = `icon-opt-${opt.id}`;
-                    el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-border bg-crypto-card hover:bg-crypto-hover";
-                    el.onclick = () => selectIcon(opt.id);
-                    const iconHtml = getIconHtml(opt.id, opt.id, '#9ca3af', 'symbol');
+                    // 初始化时使用白色图标
+                    const iconHtml = getIconHtml(opt.id, opt.id, 'white', 'symbol');
                     
                     el.innerHTML = `
-                        <div class="icon-bg w-8 h-8 rounded-full flex items-center justify-center mb-1" style="background-color: rgba(255,255,255,0.05)">
-                            <div class="transform scale-75 icon-content">${iconHtml}</div>
+                        <div class="icon-bg w-8 h-8 rounded-full flex items-center justify-center mb-1 transition-colors duration-300" style="background-color: rgba(255,255,255,0.05)">
+                            <div class="transform scale-75 icon-content transition-transform duration-300">${iconHtml}</div>
                         </div>
-                        <span class="icon-label text-[10px] text-crypto-subtext">${opt.name}</span>
+                        <span class="icon-label text-[10px] text-crypto-subtext transition-colors duration-300">${opt.name}</span>
                     `;
+                    el.onclick = () => selectIcon(opt.id);
                     container.appendChild(el);
                 });
             }
 
+            // 2. 更新状态 (只修改 Class 和 Style，不动 innerHTML)
             iconOptions.forEach(opt => {
                 const el = document.getElementById(`icon-opt-${opt.id}`);
                 const isSelected = currentVal === opt.id;
                 
+                const iconBg = el.querySelector('.icon-bg');
+                const iconLabel = el.querySelector('.icon-label');
+                const iconContent = el.querySelector('.icon-content');
+                const faIcon = el.querySelector('i'); 
+
                 if (isSelected) {
                     el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-primary bg-crypto-primary/10 ring-1 ring-crypto-primary/50";
-                    el.querySelector('.icon-bg').style.backgroundColor = 'rgba(0,240,255,0.1)';
-                    el.querySelector('.icon-label').className = "icon-label text-[10px] text-crypto-primary font-bold";
                     
-                      const activeIconHtml = getIconHtml(opt.id, opt.id, '#00f0ff', 'symbol');
-                      el.querySelector('.icon-content').innerHTML = activeIconHtml;
+                    iconBg.style.backgroundColor = 'rgba(0,240,255,0.1)';
+                    iconLabel.className = "icon-label text-[10px] text-crypto-primary font-bold";
+                    
+                    iconContent.style.transform = 'scale(0.9)'; 
+                    
+                    // FontAwesome 变色
+                    if(faIcon) { faIcon.classList.remove('text-white'); faIcon.classList.add('text-crypto-primary'); }
 
                 } else {
                     el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-border bg-crypto-card hover:bg-crypto-hover";
-                    el.querySelector('.icon-bg').style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    el.querySelector('.icon-label').className = "icon-label text-[10px] text-crypto-subtext";
-                      const inactiveIconHtml = getIconHtml(opt.id, opt.id, '#9ca3af', 'symbol');
-                      el.querySelector('.icon-content').innerHTML = inactiveIconHtml;
+                    
+                    iconBg.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                    iconLabel.className = "icon-label text-[10px] text-crypto-subtext";
+                    
+                    iconContent.style.transform = 'scale(0.75)';
+
+                    // FontAwesome 恢复白色
+                    if(faIcon) { faIcon.classList.remove('text-crypto-primary'); faIcon.classList.add('text-white'); }
                 }
             });
         }
@@ -2205,4 +2219,4 @@
       if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').then(reg => console.log('SW registered!', reg)).catch(err => console.log('SW failed', err)); }); }
     </script>
 </body>
-</html＞
+</html>
