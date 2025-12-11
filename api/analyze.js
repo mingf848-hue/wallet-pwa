@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     `;
 
     // 3. 调用 AI 接口
-    const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/v1beta/models/gemini-1.5-flash:generateContent";
+    const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/";
     
     const payload = {
       contents: [{
