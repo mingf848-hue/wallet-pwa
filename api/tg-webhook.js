@@ -1,7 +1,7 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// 1. 初始化
+// 1. 初始化 Firebase Admin
 if (getApps().length === 0) {
     const serviceAccount = JSON.parse(process.env.BITLEDGER_KEY);
     initializeApp({
@@ -13,10 +13,13 @@ const db = getFirestore();
 const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2';
 
 export default async function handler(req, res) {
+    // 只有 POST 请求才处理
     if (req.method !== 'POST') return res.status(200).send('OK');
 
     try {
         const update = req.body;
+        
+        // 1. 基本检查
         if (!update.message || !update.message.text) {
             return res.status(200).json({ status: 'ignored' });
         }
@@ -24,7 +27,7 @@ export default async function handler(req, res) {
         const chatId = String(update.message.chat.id);
         const text = update.message.text;
         
-        // 2. 鉴权
+        // 2. 鉴权：主号 + 白名单
         const adminId = String(process.env.TG_CHAT_ID); 
         const whitelist = (process.env.TG_WHITELIST || "").split(",").map(id => id.trim());
         const isAllowed = (chatId === adminId) || whitelist.includes(chatId);
@@ -34,19 +37,26 @@ export default async function handler(req, res) {
             return res.status(200).send('Unauthorized');
         }
 
-        // 3. AI 分析
+        // ★★★ 新增：撤销命令处理 ★★★
+        const command = text.trim().toLowerCase();
+        if (['撤销', 'undo', '/undo', '后悔', '回滚'].includes(command)) {
+            const undoMsg = await handleUndo();
+            await sendTelegramMessage(chatId, undoMsg);
+            return res.status(200).json({ success: true, type: 'undo' });
+        }
+
+        // 3. 正常流程：AI 分析记账
         const aiResult = await analyzeTextWithGemini(text);
 
         if (!aiResult || !aiResult.amount) {
-            await sendTelegramMessage(chatId, "❓ 没听懂... 试试：'午饭 20' 或 '现金 5 买菜'");
+            await sendTelegramMessage(chatId, "❓ 没听懂... 试试：'打车 20' 或 '撤销'");
             return res.status(200).send('AI Failed');
         }
 
         // 4. 写入数据库
         const savedTx = await saveToFirebase(aiResult);
 
-        // 5. 回复结果 (强制转换为迪拜时间显示)
-        // 使用 'en-GB' 格式化 (24小时制)，指定 Asia/Dubai 时区
+        // 5. 回复结果
         const dubaiTimeStr = new Date(savedTx.date).toLocaleString('zh-CN', { 
             timeZone: 'Asia/Dubai', 
             year: 'numeric', month: '2-digit', day: '2-digit', 
@@ -66,14 +76,65 @@ export default async function handler(req, res) {
     }
 }
 
+// --- ★★★ 核心新增：撤销逻辑 ★★★ ---
+async function handleUndo() {
+    const docRef = db.collection('bitledger_storage').doc(GLOBAL_WALLET_DOC_ID);
+    const docSnap = await docRef.get();
+    
+    if (!docSnap.exists) return "❌ 数据库读取失败";
+    
+    let state = docSnap.data().state;
+    const transactions = state.transactions || [];
+    
+    // 1. 倒序查找最近一条来源是 'telegram_bot' 的记录
+    let targetIndex = -1;
+    for (let i = transactions.length - 1; i >= 0; i--) {
+        if (transactions[i].source === 'telegram_bot') {
+            targetIndex = i;
+            break;
+        }
+    }
+    
+    if (targetIndex === -1) {
+        return "🤷‍♂️ 找不到最近的机器人记账记录（只能撤销机器人记的账）。";
+    }
+    
+    const tx = transactions[targetIndex];
+    
+    // 2. 回滚余额
+    const accIndex = state.accounts.findIndex(a => a.id === tx.accountId);
+    let accName = "未知账户";
+    
+    if (accIndex !== -1) {
+        accName = state.accounts[accIndex].name;
+        // 如果是支出，撤销就是加回来；如果是收入，撤销就是减掉
+        if (tx.type === 'expense') {
+            state.accounts[accIndex].balance += tx.amount;
+        } else {
+            state.accounts[accIndex].balance -= tx.amount;
+        }
+    }
+    
+    // 3. 从列表中删除该条记录
+    transactions.splice(targetIndex, 1);
+    
+    // 4. 保存回数据库
+    await docRef.update({
+        'state.accounts': state.accounts,
+        'state.transactions': transactions,
+        'updatedAt': new Date()
+    });
+    
+    return `↩️ <b>已撤销上一笔</b>\n\n📝 <b>${tx.note}</b>\n💸 ${tx.amount} ${tx.currency}\n💳 ${accName}\n\n余额已回滚。`;
+}
+
 // --- 辅助函数：调用 Gemini ---
 async function analyzeTextWithGemini(text) {
     const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/"; 
     
-    // ★★★ 修复1：强制计算迪拜时间 (UTC+4) 作为 AI 参考 ★★★
     const now = new Date();
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000); // 转为 UTC 时间戳
-    const dubaiNow = new Date(utcTime + (4 * 60 * 60 * 1000)); // 加 4 小时
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000); 
+    const dubaiNow = new Date(utcTime + (4 * 60 * 60 * 1000)); 
     
     const dateContext = `现在是迪拜时间 ${dubaiNow.getFullYear()}年${dubaiNow.getMonth()+1}月${dubaiNow.getDate()}日 ${dubaiNow.getHours()}:${dubaiNow.getMinutes()}`;
 
@@ -82,18 +143,18 @@ async function analyzeTextWithGemini(text) {
       【当前时间参考】：${dateContext}
 
       请提取关键信息并返回 JSON：
-      1. **amount**: 金额 (数字)。
-      2. **currency**: 币种 (CNY, USDT, AED)。
-         - 如果用户没说币种，返回 null (由系统自动匹配账户币种)。
-      3. **merchant**: 商户或用途 (作为备注)。
-      4. **account**: 支付账户关键词。
-         - **提到 "现金"、"Cash" -> 返回 "Cash"** <-- 关键修复
+      1. amount: 金额 (数字)。
+      2. currency: 币种 (CNY, USDT, AED)。
+         - 如果用户没说币种，返回 null。
+      3. merchant: 商户或用途 (作为备注)。
+      4. account: 支付账户关键词。
+         - **提到 "现金"、"Cash" -> 返回 "Cash"**
          - 提到 "银行卡"、"Bank" -> 返回 "Bank"
          - 提到 "Mashreq" -> 返回 "Mashreq"
          - 默认: WeChat
-      5. **category**: 分类 (food, shop, transport, home, fun, other)。
-      6. **type**: 'expense' (支出) 或 'income' (收入)。默认 expense。
-      7. **date**: 交易时间 (YYYY-MM-DD HH:mm:ss)。
+      5. category: 分类 (food, shop, transport, home, fun, other)。
+      6. type: 'expense' (支出) 或 'income' (收入)。默认 expense。
+      7. date: 交易时间 (YYYY-MM-DD HH:mm:ss)。
          - 基于【当前时间参考】推算。
 
       返回示例：{"amount": 5, "currency": null, "merchant": "买菜", "account": "Cash", "category": "food", "type": "expense", "date": "2025-12-11 05:05:00"}
@@ -128,97 +189,22 @@ async function saveToFirebase(data) {
     let targetAcc = null;
     const choice = (data.account || '').toLowerCase();
 
-    // A. 精准匹配
-    targetAcc = state.accounts.find(a => 
-        a.id.toLowerCase().includes(choice) || 
-        a.name.toLowerCase().includes(choice)
-    );
-
-    // B. 中文映射
+    targetAcc = state.accounts.find(a => a.id.toLowerCase().includes(choice) || a.name.toLowerCase().includes(choice));
     if (!targetAcc) {
         if (choice.includes('微信') || choice.includes('wechat')) targetAcc = state.accounts.find(a => a.id.includes('wechat'));
         else if (choice.includes('支付宝') || choice.includes('alipay')) targetAcc = state.accounts.find(a => a.id.includes('alipay'));
     }
-
-    // C. 特殊账户匹配 (Mashreq & 现金)
     if (!targetAcc) {
-        // ★★★ 修复2：现金匹配逻辑 ★★★
         if (choice.includes('cash') || choice.includes('现金')) {
-            // 优先找名字里带“现金”的，或者 ID 是 'cash' 的
             targetAcc = state.accounts.find(a => a.name.includes('现金') || a.id === 'cash');
         }
-        // 银行卡/Mashreq
         else if (choice.includes('bank') || choice.includes('card') || choice.includes('银行')) {
              targetAcc = state.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
              if (!targetAcc) targetAcc = state.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
         }
     }
-
-    // D. 兜底
     if (!targetAcc) targetAcc = state.accounts[0];
 
-    // 2. 构造账单
-    // 注意：data.date 是 AI 基于迪拜时间推算的字符串，我们把它转为 ISO 存入数据库
-    // 这样前端会自动根据手机时区显示正确时间，但数据库里存的是 UTC
-    // 技巧：这里直接 new Date(data.date) 可能会被 Vercel 当作 UTC 解析，导致时间偏差 4 小时
-    // 所以我们需要把 AI 返回的 "2025-12-11 05:05:00" 显式地告诉 JS 这是 "GMT+0400"
-    
-    let isoDate;
-    try {
-        // 简单粗暴法：如果 AI 返回的时间字符串没有时区，手动拼上迪拜时区
-        const dateStr = data.date.replace(' ', 'T'); // 2025-12-11T05:05:00
-        // 判断是否已经带有时区（AI有时候会带Z）
-        if (dateStr.endsWith('Z') || dateStr.includes('+')) {
-            isoDate = new Date(dateStr).toISOString();
-        } else {
-            // 强制指定为迪拜时间 (+04:00)
-            isoDate = new Date(`${dateStr}+04:00`).toISOString();
-        }
-    } catch(e) {
-        isoDate = new Date().toISOString(); // 出错就用当前时间
-    }
+    const finalCurrency = data.currency || targetAcc.currency || 'CNY';
 
-    const newTx = {
-        id: Date.now(),
-        type: data.type || 'expense',
-        amount: parseFloat(data.amount),
-        currency: data.currency || targetAcc.currency || 'CNY',
-        accountId: targetAcc.id,
-        category: data.category || 'other',
-        date: isoDate,
-        note: data.merchant || 'Bot记账',
-        source: 'telegram_bot'
-    };
-
-    // 3. 更新余额
-    const accIndex = state.accounts.findIndex(a => a.id === targetAcc.id);
-    if (accIndex !== -1) {
-        if (newTx.type === 'expense') state.accounts[accIndex].balance -= newTx.amount;
-        else state.accounts[accIndex].balance += newTx.amount;
-    }
-    state.transactions.push(newTx);
-
-    // 4. 保存
-    await docRef.update({
-        'state.accounts': state.accounts,
-        'state.transactions': state.transactions,
-        'updatedAt': new Date()
-    });
-
-    return {
-        ...newTx,
-        accountName: targetAcc.name,
-        categoryName: data.category
-    };
-}
-
-// 发消息
-async function sendTelegramMessage(chatId, text) {
-    const token = process.env.TG_BOT_TOKEN;
-    if (!token) return;
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "HTML" })
-    });
-}
+    // 2. 构造账
