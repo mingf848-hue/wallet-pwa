@@ -1,16 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/update-rates",
+      "path": "/api/cron/daily",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/interest",
-      "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/cron/check-reminders",
-      "schedule": "0 * * * *" 
     }
   ]
 }
