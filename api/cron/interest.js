@@ -14,8 +14,10 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 export default async function handler(req, res) {
-    // 鉴权 (可选)
-    const authHeader = req.headers.get('authorization');
+    // ★★★ 修复点：直接访问属性，而不是用 .get() ★★★
+    // Vercel Cron 会自动带上 Authorization 头 (如果有配置 CRON_SECRET)
+    const authHeader = req.headers.authorization; 
+    
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         // return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -62,7 +64,7 @@ export default async function handler(req, res) {
                     rawInterest = (currentBal * baseApy) / 365;
                 }
 
-                // 3. ★★★ 核心修复：针对交易所的特殊精度处理 ★★★
+                // 3. 核心修复：针对交易所的特殊精度处理
                 let finalInterest = 0;
                 
                 // 判断是否是 OKX (不区分大小写)
@@ -71,18 +73,16 @@ export default async function handler(req, res) {
                 if (isOKX) {
                     // === OKX 逻辑 ===
                     // 规则：保留 2 位小数，向下取整 (Floor)
-                    // 例子：2.7451 -> 2.74
                     finalInterest = Math.floor(rawInterest * 100) / 100;
                 } else {
                     // === Bitget / 默认逻辑 ===
                     // 规则：保留 6 位小数，向下取整 (Floor)
-                    // 例子：1.2794819 -> 1.279481
                     finalInterest = Math.floor(rawInterest * 1000000) / 1000000;
                 }
 
                 // 只有最终利息 > 0 才入账
                 if (finalInterest > 0) {
-                    // 更新余额 (注意 JS 浮点数相加，这里为了安全可以再次做一次精度修正，但通常直接加即可)
+                    // 更新余额
                     acc.balance += finalInterest; 
 
                     // 构造备注
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
                     transactions.push({
                         id: Date.now() + Math.random(),
                         type: 'income',
-                        amount: finalInterest, // 这里存入的就是处理好的 2位 或 6位 小数
+                        amount: finalInterest, 
                         currency: acc.currency,
                         accountId: acc.id,
                         category: 'interest',
