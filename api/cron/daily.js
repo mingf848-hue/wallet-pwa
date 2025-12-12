@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import Parser from 'rss-parser';
 
 // 1. 初始化 Firebase
 if (getApps().length === 0) {
@@ -10,6 +11,7 @@ if (getApps().length === 0) {
 }
 
 const db = getFirestore();
+const parser = new Parser();
 const GLOBAL_WALLET_DOC_ID = 'my_personal_wallet_v2';
 
 export default async function handler(req, res) {
@@ -68,18 +70,11 @@ export default async function handler(req, res) {
             let updated = false;
             let yieldCount = 0;
 
-            // ★★★ 核心修复：构造“迪拜 00:00”的时间戳 ★★★
+            // 构造迪拜 00:00 时间
             const now = new Date();
-            // 1. 拿到当前服务器时间 (UTC)
-            // 2. 加上 4 小时，模拟“当前是迪拜几点”
             const dubaiOffset = 4 * 60 * 60 * 1000;
             const dubaiNow = new Date(now.getTime() + dubaiOffset);
-            
-            // 3. 把“迪拜时间”的时分秒归零 (00:00:00)
             dubaiNow.setUTCHours(0, 0, 0, 0);
-            
-            // 4. 减去 4 小时，还原回 UTC 时间存入数据库
-            // 这样前端(迪拜时区)读取时，显示的就是 00:00:00
             const interestDateISO = new Date(dubaiNow.getTime() - dubaiOffset).toISOString();
 
             for (let acc of accounts) {
@@ -113,10 +108,7 @@ export default async function handler(req, res) {
                             currency: acc.currency,
                             accountId: acc.id,
                             category: 'interest',
-                            
-                            // ★ 使用我们算好的 0点 时间
                             date: interestDateISO,
-                            
                             note: `收益 ${acc.apy}%`,
                             isAuto: true,
                             source: 'vercel_cron'
@@ -135,10 +127,58 @@ export default async function handler(req, res) {
                     'state.lastInterestDate': interestDateISO,
                     'updatedAt': new Date()
                 });
-                logs.push(`✅ ${yieldCount} 个账户已派息 (时间: 00:00)`);
-            } else {
-                logs.push("💤 今日无利息");
+                logs.push(`✅ ${yieldCount} 个账户已派息`);
             }
+        }
+
+        // ==========================================
+        // 任务 C: USDG 新闻监控 (新增)
+        // ==========================================
+        console.log("👉 [Task 3] 正在监控 USDG 新闻...");
+        
+        try {
+            // 搜索关键词: USDG stablecoin
+            const feedUrl = "https://news.google.com/rss/search?q=USDG+stablecoin+when:1d&hl=en-US&gl=US&ceid=US:en";
+            const feed = await parser.parseURL(feedUrl);
+
+            if (feed.items && feed.items.length > 0) {
+                const newsList = feed.items.slice(0, 10).map((item, index) => {
+                    return `${index + 1}. ${item.title} (${item.pubDate})`;
+                }).join("\n");
+
+                // 调用 AI 分析
+                const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/";
+                const systemPrompt = `
+                你是一个加密货币风险控制专家。你的任务是阅读关于稳定币 "USDG" 的新闻，并撰写简报。
+                【新闻列表】：
+                ${newsList}
+                【输出要求】：
+                1. 语言：中文。
+                2. 格式：适合 Telegram 阅读的消息（使用 emoji，重点加粗）。
+                3. 核心任务：判断是否有风险（如：脱钩、监管、暴雷）。如果有风险，必须在开头用⚠️警告。
+                4. 如果新闻全是无关广告，回复：“今日无实质性 USDG 新闻”。
+                `;
+
+                const aiRes = await fetch(proxyUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+                });
+
+                if (aiRes.ok) {
+                    const aiData = await aiRes.json();
+                    if (aiData.candidates && aiData.candidates[0].content) {
+                        const report = aiData.candidates[0].content.parts[0].text;
+                        logs.push("✅ 新闻简报生成成功");
+                        await sendTelegramMessage(report);
+                    }
+                }
+            } else {
+                logs.push("📭 今日无 USDG 新闻");
+            }
+        } catch (newsErr) {
+            console.error("News Task Failed:", newsErr);
+            logs.push("❌ 新闻监控失败");
         }
 
         return res.status(200).json({ success: true, logs });
@@ -171,6 +211,6 @@ async function sendTelegramMessage(text) {
     if (!token || !chatId) return;
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" })
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }) // 注意：新闻用 Markdown 可能会有点冲突，这里如果报错可以改回 Markdown
     });
 }
