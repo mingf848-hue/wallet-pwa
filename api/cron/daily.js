@@ -20,10 +20,9 @@ export default async function handler(req, res) {
 
     try {
         // ==========================================
-        // 任务 A: 抓取币安汇率
+        // 任务 A: 抓取币安汇率 (保持不变)
         // ==========================================
         console.log("👉 [Task 1] 正在更新汇率...");
-        
         const [usdtToCny, usdtToAed] = await Promise.all([
             fetchBinanceP2P("CNY", ["BANK", "ALIPAY", "WECHAT"]),
             fetchBinanceP2P("AED", ["BANK"]) 
@@ -32,33 +31,17 @@ export default async function handler(req, res) {
         if (usdtToCny) {
             const finalUsdtAed = usdtToAed || 3.6725;
             const aedToCny = parseFloat((usdtToCny / finalUsdtAed).toFixed(4));
-            
             await db.collection('bitledger_storage').doc('global_config').set({
-                rates: {
-                    USDT: usdtToCny,
-                    AED: aedToCny,
-                    USDT_AED: finalUsdtAed,
-                    CNY: 1,
-                    updateTime: new Date().toISOString(),
-                    source: 'Binance P2P'
-                }
+                rates: { USDT: usdtToCny, AED: aedToCny, USDT_AED: finalUsdtAed, CNY: 1, updateTime: new Date().toISOString(), source: 'Binance P2P' }
             }, { merge: true });
-
             logs.push(`✅ 汇率: USDT/CNY=${usdtToCny}, AED/CNY=${aedToCny}`);
-            
-            // 推送汇率
-            await sendTelegramMessage(
-                `💹 <b>每日汇率</b>\n🇨🇳 USDT/CNY: <code>${usdtToCny}</code>\n🇦🇪 AED/CNY: <code>${aedToCny}</code>`
-            );
-        } else {
-            console.error("❌ 汇率获取失败");
-        }
+            await sendTelegramMessage(`💹 <b>每日汇率</b>\n🇨🇳 USDT/CNY: <code>${usdtToCny}</code>\n🇦🇪 AED/CNY: <code>${aedToCny}</code>`);
+        } else { console.error("❌ 汇率获取失败"); }
 
         // ==========================================
-        // 任务 B: 计算利息
+        // 任务 B: 计算利息 (保持不变)
         // ==========================================
         console.log("👉 [Task 2] 正在计算利息...");
-
         const docRef = db.collection('bitledger_storage').doc(GLOBAL_WALLET_DOC_ID);
         const docSnap = await docRef.get();
 
@@ -69,8 +52,6 @@ export default async function handler(req, res) {
             let transactions = state.transactions || [];
             let updated = false;
             let yieldCount = 0;
-
-            // 构造迪拜 00:00 时间
             const now = new Date();
             const dubaiOffset = 4 * 60 * 60 * 1000;
             const dubaiNow = new Date(now.getTime() + dubaiOffset);
@@ -83,62 +64,39 @@ export default async function handler(req, res) {
                     const limit = parseFloat(acc.tierLimit) || 0; 
                     const baseApy = parseFloat(acc.apy || 0) / 100;      
                     const excessApy = parseFloat(acc.excessApy || 0) / 100; 
-
                     let rawInterest = 0;
-                    if (limit > 0 && currentBal > limit) {
-                        rawInterest = ((limit * baseApy) + ((currentBal - limit) * excessApy)) / 365;
-                    } else {
-                        rawInterest = (currentBal * baseApy) / 365;
-                    }
-
-                    // 精度处理
+                    if (limit > 0 && currentBal > limit) rawInterest = ((limit * baseApy) + ((currentBal - limit) * excessApy)) / 365;
+                    else rawInterest = (currentBal * baseApy) / 365;
+                    
                     let interest = 0;
-                    if (acc.name.toLowerCase().includes('okx') || acc.id.toLowerCase().includes('okx')) {
-                        interest = Math.floor(rawInterest * 100) / 100;
-                    } else {
-                        interest = Math.floor(rawInterest * 1000000) / 1000000;
-                    }
+                    if (acc.name.toLowerCase().includes('okx') || acc.id.toLowerCase().includes('okx')) interest = Math.floor(rawInterest * 100) / 100;
+                    else interest = Math.floor(rawInterest * 1000000) / 1000000;
 
                     if (interest > 0) {
                         acc.balance += interest;
-                        transactions.push({
-                            id: Date.now() + Math.random(),
-                            type: 'income',
-                            amount: interest,
-                            currency: acc.currency,
-                            accountId: acc.id,
-                            category: 'interest',
-                            date: interestDateISO,
-                            note: `收益 ${acc.apy}%`,
-                            isAuto: true,
-                            source: 'vercel_cron'
-                        });
-                        updated = true;
-                        yieldCount++;
+                        transactions.push({ id: Date.now() + Math.random(), type: 'income', amount: interest, currency: acc.currency, accountId: acc.id, category: 'interest', date: interestDateISO, note: `收益 ${acc.apy}%`, isAuto: true, source: 'vercel_cron' });
+                        updated = true; yieldCount++;
                         logs.push(`💰 [${acc.name}] +${interest} ${acc.currency}`);
                     }
                 }
             }
-
             if (updated) {
-                await docRef.update({
-                    'state.accounts': accounts,
-                    'state.transactions': transactions,
-                    'state.lastInterestDate': interestDateISO,
-                    'updatedAt': new Date()
-                });
+                await docRef.update({ 'state.accounts': accounts, 'state.transactions': transactions, 'state.lastInterestDate': interestDateISO, 'updatedAt': new Date() });
                 logs.push(`✅ ${yieldCount} 个账户已派息`);
             }
         }
 
         // ==========================================
-        // 任务 C: USDG 新闻监控 (新增)
+        // 任务 C: USDG 新闻监控 (★★★ 核心修正版 ★★★)
         // ==========================================
         console.log("👉 [Task 3] 正在监控 USDG 新闻...");
         
         try {
-            // 搜索关键词: USDG stablecoin
-            const feedUrl = "https://news.google.com/rss/search?q=USDG+stablecoin+when:1d&hl=en-US&gl=US&ceid=US:en";
+            // ★ 修改 1: 搜索关键词更精准 (Global Dollar OR USDG+Paxos)
+            // 排除掉单纯的 "USD stablecoin" 这种宽泛词
+            const query = encodeURIComponent('"Global Dollar" OR ("USDG" AND "Paxos") when:1d');
+            const feedUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+            
             const feed = await parser.parseURL(feedUrl);
 
             if (feed.items && feed.items.length > 0) {
@@ -146,17 +104,23 @@ export default async function handler(req, res) {
                     return `${index + 1}. ${item.title} (${item.pubDate})`;
                 }).join("\n");
 
-                // 调用 AI 分析
+                // ★ 修改 2: Prompt 增加“防呆过滤”指令
                 const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/";
                 const systemPrompt = `
-                你是一个加密货币风险控制专家。你的任务是阅读关于稳定币 "USDG" 的新闻，并撰写简报。
+                你是一个加密货币风险控制专家。你的任务是阅读新闻并撰写 "USDG (Global Dollar)" 的风险简报。
+
                 【新闻列表】：
                 ${newsList}
+
+                【严格过滤规则】：
+                1. **只关注** 由 Paxos 发行的 "USDG" (Global Dollar)。
+                2. **绝对忽略** Klarna、PayPal (PYUSD)、USDT 或其他无关稳定币的新闻。如果新闻里全是 Klarna，直接回答“无 USDG 相关新闻”。
+                
                 【输出要求】：
                 1. 语言：中文。
-                2. 格式：适合 Telegram 阅读的消息（使用 emoji，重点加粗）。
-                3. 核心任务：判断是否有风险（如：脱钩、监管、暴雷）。如果有风险，必须在开头用⚠️警告。
-                4. 如果新闻全是无关广告，回复：“今日无实质性 USDG 新闻”。
+                2. 格式：适合 Telegram 阅读。
+                3. 如果有关于 USDG 的**脱钩、监管调查、储备金不足**等风险，必须在开头用⚠️警告。
+                4. 如果全是无关新闻或无风险，请简短回复：“✅ 今日 USDG 无重大风险新闻”。
                 `;
 
                 const aiRes = await fetch(proxyUrl, {
@@ -169,12 +133,17 @@ export default async function handler(req, res) {
                     const aiData = await aiRes.json();
                     if (aiData.candidates && aiData.candidates[0].content) {
                         const report = aiData.candidates[0].content.parts[0].text;
-                        logs.push("✅ 新闻简报生成成功");
-                        await sendTelegramMessage(report);
+                        // 只有当 AI 说有内容时才发，避免每天发废话
+                        if (!report.includes("无 USDG 相关新闻")) {
+                             logs.push("✅ 新闻简报生成成功");
+                             await sendTelegramMessage(report);
+                        } else {
+                             logs.push("📭 今日新闻与 USDG 无关，跳过推送");
+                        }
                     }
                 }
             } else {
-                logs.push("📭 今日无 USDG 新闻");
+                logs.push("📭 今日无相关新闻");
             }
         } catch (newsErr) {
             console.error("News Task Failed:", newsErr);
@@ -193,14 +162,12 @@ export default async function handler(req, res) {
 async function fetchBinanceP2P(fiat, payTypes) {
     try {
         const res = await fetch("https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fiat, page: 1, rows: 5, tradeType: "SELL", asset: "USDT", payTypes })
         });
         const json = await res.json();
         if (!json.data || json.data.length === 0) return null;
-        let total = 0;
-        json.data.forEach(ad => { total += parseFloat(ad.adv.price); });
+        let total = 0; json.data.forEach(ad => { total += parseFloat(ad.adv.price); });
         return parseFloat((total / json.data.length).toFixed(4));
     } catch (e) { return null; }
 }
@@ -211,6 +178,6 @@ async function sendTelegramMessage(text) {
     if (!token || !chatId) return;
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }) // 注意：新闻用 Markdown 可能会有点冲突，这里如果报错可以改回 Markdown
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }) // 改回 Markdown 以支持 AI 的格式
     });
 }
