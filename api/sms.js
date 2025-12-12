@@ -17,15 +17,13 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     try {
-        // 1. 安全校验 (URL 参数带 key)
+        // 1. 安全校验
         const { key } = req.query;
-        // ★ 请把 '123456' 改成你自己设置的密码，防止别人乱调你的接口
-        if (key !== '123456') {
+        if (key !== '123456') { // ★ 记得改成你的密码
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
         // 2. 接收数据
-        // 我们约定 iOS 快捷指令发来标准的 JSON: { "merchant": "商户名", "amount": 100.50 }
         const { merchant, amount, account, date } = req.body;
 
         if (!merchant || !amount) {
@@ -37,26 +35,49 @@ export default async function handler(req, res) {
         const docSnap = await docRef.get();
         let state = docSnap.exists ? docSnap.data().state : { accounts: [], transactions: [] };
 
-        // 4. 匹配账户 (默认 Mashreq)
-        // 如果快捷指令没传 account，默认就当是 Mashreq 银行卡
-        let targetAccName = account || 'Mashreq';
-        let targetAcc = state.accounts.find(a => 
-            a.name.toLowerCase().includes(targetAccName.toLowerCase()) || 
-            a.id.toLowerCase().includes(targetAccName.toLowerCase())
+        // ★★★ 核心修改：移植 analyze.js 的强力匹配逻辑 ★★★
+        let targetAcc = null;
+        // 如果快捷指令没传，默认用 'Mashreq'，转小写方便匹配
+        const choice = (account || 'Mashreq').toLowerCase();
+
+        // A. 优先尝试直接匹配 (匹配 ID 或 Name)
+        targetAcc = state.accounts.find(a => 
+            a.name.toLowerCase().includes(choice) || 
+            a.id.toLowerCase().includes(choice)
         );
+
+        // B. 中文/特殊关键词映射
+        if (!targetAcc) {
+            if (choice.includes('微信')) targetAcc = state.accounts.find(a => a.id.includes('wechat'));
+            if (choice.includes('支付宝')) targetAcc = state.accounts.find(a => a.id.includes('alipay'));
+        }
+
+        // C. 银行卡/现金特殊映射 (最关键的一步，保证图标正确)
+        if (!targetAcc) {
+            if (choice.includes('cash') || choice.includes('现金')) {
+                targetAcc = state.accounts.find(a => a.name.includes('现金') || a.id === 'cash');
+            } 
+            // 只要包含 bank, card, mashreq, neo，就死命找 Mashreq 账户
+            else if (choice.includes('bank') || choice.includes('card') || choice.includes('银行') || choice.includes('mashreq') || choice.includes('neo')) {
+                 // 1. 优先找名字里带 mashreq 的
+                 targetAcc = state.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
+                 // 2. 找不到再找带 'bank' 的
+                 if (!targetAcc) targetAcc = state.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
+            }
+        }
         
-        // 兜底：如果找不到，就用第一个账户
+        // D. 实在找不到，兜底用第一个
         if (!targetAcc) targetAcc = state.accounts[0];
 
         // 5. 构造交易数据
         const numAmount = parseFloat(amount);
         const newTx = {
             id: Date.now(),
-            type: 'expense', // 短信记账默认为支出
+            type: 'expense',
             amount: numAmount,
-            currency: targetAcc.currency || 'AED', // 默认 AED
-            accountId: targetAcc.id,
-            category: 'other', // 默认分类，你可以改为 'shop' 或其他
+            currency: targetAcc.currency || 'AED', // 跟随账户币种
+            accountId: targetAcc.id,               // ★ 这里 ID 对了，前端图标就会对
+            category: 'other', 
             date: date || new Date().toISOString(),
             merchant: merchant,
             note: 'Apple Pay 自动记账',
@@ -70,15 +91,14 @@ export default async function handler(req, res) {
         }
         state.transactions.push(newTx);
 
-        // 7. 保存到数据库
+        // 7. 保存
         await docRef.update({
             'state.accounts': state.accounts,
             'state.transactions': state.transactions,
             'updatedAt': new Date()
         });
 
-        // 8. 发送静默通知 (Telegram)
-        // disable_notification: true -> 手机不会响，只有红点
+        // 8. 静默通知
         await sendSilentTelegram(
             `💸 <b>自动记账成功</b>\n` +
             `➖ ${numAmount} ${newTx.currency}\n` +
@@ -94,7 +114,6 @@ export default async function handler(req, res) {
     }
 }
 
-// 辅助函数：发送静默消息
 async function sendSilentTelegram(text) {
     const token = process.env.TG_BOT_TOKEN;
     const chatId = process.env.TG_CHAT_ID;
@@ -108,10 +127,8 @@ async function sendSilentTelegram(text) {
                 chat_id: chatId,
                 text: text,
                 parse_mode: "HTML",
-                disable_notification: true // ★ 关键：静默发送
+                disable_notification: true 
             })
         });
-    } catch (e) {
-        console.error("TG Send Failed", e);
-    }
+    } catch (e) { console.error(e); }
 }
