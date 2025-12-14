@@ -43,15 +43,14 @@ const query = encodeURIComponent(
         logs.push(`🔍 正在抓取 RSS: ${decodeURIComponent(query)}`);
         
         const feed = await parser.parseURL(feedUrl);
-        // =========== 🧪 测试专用代码 (测完删除) ===========
-        // 强行覆盖抓取结果，伪造一条“黑客攻击”新闻
-        feed.items = [{
-            title: "URGENT: USDD Protocol Hacked, 500M Reserve Drained via Smart Contract Exploit",
-            link: "https://fake-news.com/usdd-hack",
-            pubDate: new Date().toUTCString(),
-            content: "Hackers have drained the liquidity pool. Justin Sun confirms investigation."
-        }];
-        // ===============================================
+// 修改测试代码段
+feed.items = [{
+    title: "BREAKING: USDD Stablecoin Hacked, Treasury Drained",
+    // 👇 把 URL 改得像真的，AI 就不敢轻易判定为假新闻了
+    link: "https://www.coindesk.com/business/2025/12/15/usdd-hacked-critical", 
+    pubDate: new Date().toUTCString(),
+    content: "Reports confirm USDD smart contract has been exploited. 500M assets stolen."
+}];
 
         if (!feed.items || feed.items.length === 0) {
             logs.push("📭 今日无相关新闻");
