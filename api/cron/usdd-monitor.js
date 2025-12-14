@@ -36,7 +36,7 @@ const query = encodeURIComponent(
     '"depeg" OR "unpeg" OR ' +                                    // 脱钩相关
     '"reserve" OR "insolvent" OR ' +                              // 储备金/破产
     '"Justin Sun"' +                                              // 孙宇晨风险
-    ') when:7d'
+    ') when:1d'
 );
         const feedUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
@@ -44,14 +44,6 @@ const query = encodeURIComponent(
         
         const feed = await parser.parseURL(feedUrl);
 // 修改测试代码段
-feed.items = [{
-    title: "BREAKING: USDD Stablecoin Hacked, Treasury Drained",
-    // 👇 把 URL 改得像真的，AI 就不敢轻易判定为假新闻了
-    link: "https://www.coindesk.com/business/2025/12/15/usdd-hacked-critical", 
-    pubDate: new Date().toUTCString(),
-    content: "Reports confirm USDD smart contract has been exploited. 500M assets stolen."
-}];
-
         if (!feed.items || feed.items.length === 0) {
             logs.push("📭 今日无相关新闻");
             return res.status(200).json({ success: true, logs });
