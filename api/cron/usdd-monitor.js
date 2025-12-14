@@ -29,7 +29,15 @@ export default async function handler(req, res) {
 
     try {
         // 1. 定义高危关键词 (USDD, 孙宇晨, 脱钩, 储备金)
-        const query = encodeURIComponent('"USDD" OR ("Justin Sun" AND "USDD") OR ("USDD" AND "depeg") OR ("USDD" AND "reserve") when:1d');
+// ✅ 修改后：增加了黑客、漏洞、被盗等关键词
+const query = encodeURIComponent(
+    '"USDD" AND (' +
+    '"hack" OR "hacker" OR "exploit" OR "attack" OR "drain" OR ' + // 黑客相关
+    '"depeg" OR "unpeg" OR ' +                                    // 脱钩相关
+    '"reserve" OR "insolvent" OR ' +                              // 储备金/破产
+    '"Justin Sun"' +                                              // 孙宇晨风险
+    ') when:7d'
+);
         const feedUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
 
         logs.push(`🔍 正在抓取 RSS: ${decodeURIComponent(query)}`);
