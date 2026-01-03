@@ -406,7 +406,7 @@
                 <!-- BILLS VIEW -->
                 <div id="view-bills" class="tab-content active">
                     <!-- FIXED HEADER SECTION -->
-                    <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
+     <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
                         <div class="mb-4">
                             <div class="flex items-center gap-2 mb-4 relative">
                                 <button id="date-range-display-btn" onclick="window.openDateRangePicker()" class="relative bg-crypto-card border border-crypto-border rounded-lg px-3 py-1.5 flex items-center gap-2 active:scale-95 transition-transform hover:bg-crypto-hover">
@@ -429,6 +429,9 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="flex gap-2 overflow-x-auto hide-scrollbar mb-2 pb-1" id="bills-filter-container">
+                            </div>
                     </div>
 
                     <!-- 设计感分割线 -->
@@ -607,7 +610,7 @@
                     <button id="tab-transfer" onclick="window.setTransactionType('transfer')" class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-transparent transition-all">划转</button>
                 </div>
 
-                <div id="transfer-ui" class="px-6 mb-4 hidden">
+               <div id="transfer-ui" class="px-6 mb-4 hidden">
                     <div class="flex items-center gap-3 bg-crypto-bg p-4 rounded-2xl border border-crypto-border">
                         <div class="flex-1">
                             <div class="text-[10px] text-crypto-subtext mb-1">从</div>
@@ -617,6 +620,19 @@
                         <div class="flex-1 text-right">
                             <div class="text-[10px] text-crypto-subtext mb-1">到</div>
                             <select id="transfer-to" class="w-full bg-transparent text-white text-sm outline-none text-right font-medium" onchange="window.updateTransferUI()"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="transfer-target-input-container" class="px-6 mb-4 hidden transition-all">
+                    <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-crypto-subtext">实际到账 (可选)</span>
+                            <span class="text-[9px] text-gray-500">留空则自动换算</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                             <input type="text" id="transfer-final-amount" readonly onclick="window.openUniversalKeypad('transfer-final-amount')" placeholder="自动计算" class="bg-transparent text-right text-white font-mono font-bold outline-none w-32 placeholder-gray-600 transition-colors focus:text-crypto-primary" inputmode="none">
+                            <span id="transfer-target-currency-label" class="text-xs text-crypto-primary font-bold font-mono"></span>
                         </div>
                     </div>
                 </div>
@@ -2195,7 +2211,279 @@
                 container.appendChild(btn);
             });
         }
+// ==========================================
+        // 【新增/修改】 核心逻辑补丁 (请直接复制到底部)
+        // ==========================================
 
+        let currentFilterAccountId = 'all'; // 筛选状态
+
+        // 1. 渲染账单筛选栏
+        window.renderBillFilters = () => {
+            const container = document.getElementById('bills-filter-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            // 全部按钮
+            const allBtn = document.createElement('button');
+            const isAllActive = currentFilterAccountId === 'all';
+            allBtn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${isAllActive ? 'bg-white text-black border-white' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
+            allBtn.innerText = '全部';
+            allBtn.onclick = () => { currentFilterAccountId = 'all'; window.renderBillFilters(); renderHome(); };
+            container.appendChild(allBtn);
+
+            // 各账户按钮
+            state.accounts.forEach(acc => {
+                const isActive = currentFilterAccountId === acc.id;
+                const btn = document.createElement('button');
+                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
+                btn.innerHTML = `<span>${acc.name}</span>`;
+                btn.onclick = () => { currentFilterAccountId = acc.id; window.renderBillFilters(); renderHome(); };
+                container.appendChild(btn);
+            });
+        };
+
+        // 2. 修复键盘：支持加减乘除 (+ - * /)
+        window.keypadPress = (k) => {
+            let cur = temp.amount.toString();
+            if (k === 'backspace') {
+                temp.amount = cur.length > 1 ? cur.slice(0, -1) : '0';
+            }
+            else if (['+','-','*','/'].includes(k)) {
+                // 防止连续输入运算符
+                const lastChar = cur.slice(-1);
+                if (['+','-','*','/'].includes(lastChar)) {
+                    temp.amount = cur.slice(0, -1) + k;
+                } else {
+                    temp.amount = cur + k;
+                }
+            }
+            else { 
+                if (cur === '0' && k !== '.') temp.amount = k; 
+                else { 
+                    if (k === '.' && cur.includes('.') && !cur.match(/[+\-*\/]/)) return; 
+                    if (cur.length > 20) return; 
+                    temp.amount = cur + k; 
+                } 
+            }
+            document.getElementById('input-amount').innerText = temp.amount;
+        };
+
+        // 3. 提交交易：支持算式计算 + 转账手动金额
+        window.submitTransaction = () => {
+            let amount = 0;
+            try {
+                // 计算算式 (移除末尾可能的运算符)
+                let expr = temp.amount.toString().replace(/[+\-*\/]$/, '');
+                // 安全检查：只允许数字和运算符
+                if (/^[\d.+\-*\/]+$/.test(expr)) {
+                    amount = Function('"use strict";return (' + expr + ')')();
+                    amount = parseFloat(amount.toFixed(2));
+                } else {
+                    amount = parseFloat(expr);
+                }
+            } catch (e) { return showToast('金额格式错误'); }
+
+            if (isNaN(amount) || amount <= 0) return showToast('金额无效');
+            
+            const fromAcc = state.accounts.find(a => a.id === temp.accountId);
+            if (!fromAcc) return showToast('请先创建账户');
+            
+            if (!isRemoteDataLoaded) { showToast("正在同步数据，请稍后..."); return; }
+
+            const note = document.getElementById('input-note').value;
+            const date = temp.date || new Date(); 
+            
+            if (temp.type === 'transfer') {
+                const toAcc = state.accounts.find(a => a.id === temp.targetAccountId);
+                if (fromAcc.id === toAcc.id) return showToast('账户相同');
+                
+                // 扣款
+                fromAcc.balance = fixPrecision(fromAcc.balance - amount);
+                
+                // 目标金额：优先用手动输入的，否则自动算
+                let finalAmount = 0;
+                const manualTargetStr = document.getElementById('transfer-final-amount').value;
+                const manualTarget = parseFloat(manualTargetStr);
+                
+                let autoNote = note || `划转 ${amount} ${fromAcc.currency} 到 ${toAcc.name}`;
+
+                if (!isNaN(manualTarget) && manualTarget > 0) {
+                    finalAmount = manualTarget;
+                    autoNote += ` (实收 ${manualTarget} ${toAcc.currency})`;
+                } else {
+                    finalAmount = convertCurrency(amount, fromAcc.currency, toAcc.currency);
+                }
+                
+                toAcc.balance = fixPrecision(toAcc.balance + finalAmount);
+                
+                state.transactions.push({ id: Date.now(), type: 'transfer', amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, targetAccountId: toAcc.id, date: date, note: autoNote });
+            } else {
+                if (temp.type === 'expense') fromAcc.balance = fixPrecision(fromAcc.balance - amount);
+                else fromAcc.balance = fixPrecision(fromAcc.balance + amount);
+                state.transactions.push({ id: Date.now(), type: temp.type, amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, category: temp.catId, date: date, note: note });
+            }
+            saveData(); window.closeAddModal(); showToast('操作成功');
+        };
+
+        // 4. 更新 UI 显示：控制转账输入框显隐
+        window.setTransactionType = (type) => {
+            temp.type = type;
+            const tExp = document.getElementById('tab-expense'); const tInc = document.getElementById('tab-income'); const tTra = document.getElementById('tab-transfer');
+            const btn = document.getElementById('btn-submit');
+            [tExp, tInc, tTra].forEach(t => t.className = "flex-1 py-2.5 rounded-xl text-sm font-medium border border-transparent text-crypto-subtext transition-all");
+            const activeClass = "flex-1 py-2.5 rounded-xl text-sm font-bold border border-crypto-border bg-crypto-card shadow-sm text-white";
+            
+            document.getElementById('selectors-ui').classList.remove('hidden'); 
+            document.getElementById('transfer-ui').classList.add('hidden'); 
+            document.getElementById('transfer-rate-hint').classList.add('hidden');
+            document.getElementById('transfer-target-input-container').classList.add('hidden'); // 默认隐藏
+
+            if (type === 'expense') { tExp.className = activeClass + " text-crypto-down"; btn.className = "keypad-btn bg-crypto-down h-16 text-white font-bold text-xl"; btn.innerText = "确认支出"; }
+            else if (type === 'income') { tInc.className = activeClass + " text-crypto-up"; btn.className = "keypad-btn bg-crypto-up h-16 text-white font-bold text-xl"; btn.innerText = "确认收入"; }
+            else { 
+                tTra.className = activeClass + " text-crypto-primary"; 
+                btn.className = "keypad-btn bg-crypto-primary h-16 text-black font-bold text-xl"; 
+                btn.innerText = "确认划转"; 
+                document.getElementById('selectors-ui').classList.add('hidden'); 
+                document.getElementById('transfer-ui').classList.remove('hidden'); 
+                document.getElementById('transfer-target-input-container').classList.remove('hidden'); // 显示
+                window.updateTransferUI(); 
+            }
+            if(type !== 'transfer') renderModalAccounts(); renderModalCategories();
+        };
+
+        // 5. 更新转账 UI：处理币种标签
+        window.updateTransferUI = () => {
+            const fromId = document.getElementById('transfer-from').value; const toId = document.getElementById('transfer-to').value;
+            temp.accountId = fromId; temp.targetAccountId = toId;
+            const fromAcc = state.accounts.find(a => a.id === fromId);
+            const toAcc = state.accounts.find(a => a.id === toId);
+            if(fromAcc) document.getElementById('input-currency-label').innerText = fromAcc.currency;
+            if(toAcc) document.getElementById('transfer-target-currency-label').innerText = toAcc.currency;
+            
+            // 切换账户时重置手动输入
+            document.getElementById('transfer-final-amount').value = '';
+
+            const hint = document.getElementById('transfer-rate-hint');
+            if (fromAcc && toAcc && fromAcc.currency !== toAcc.currency) {
+                hint.classList.remove('hidden');
+                if (fromAcc.currency === 'USDT' && toAcc.currency === 'CNY') hint.innerText = `Rate: 1 USDT ≈ ${exchangeRates.USDT.toFixed(2)} CNY`;
+                else { const rate = exchangeRates[fromAcc.currency] / exchangeRates[toAcc.currency]; hint.innerText = `Rate: 1 ${fromAcc.currency} ≈ ${rate.toFixed(4)} ${toAcc.currency}`; }
+            } else { hint.classList.add('hidden'); }
+        };
+
+        // 6. 重写 renderHome 以支持筛选
+        // 为了确保覆盖，我们需要完全重写它。
+        const originalRenderHome = renderHome; 
+        renderHome = () => {
+            // 先调用原逻辑更新资产页等
+            // 但账单列表我们需要自己接管，所以我们直接复制逻辑并修改
+            
+            // Assets Tab & Header calculations (Same as before)
+            let totalCNY = 0;
+            state.accounts.forEach(acc => { totalCNY += convertCurrency(acc.balance, acc.currency, 'CNY'); });
+            document.getElementById('total-asset-display').innerText = state.privacyMode ? '****' : `≈ ${totalCNY.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            const totalActualYesterdayCNY = getYesterdayInterest();
+            let allTimeTotal = 0;
+            state.transactions.filter(t => t.category === 'interest').forEach(t => { allTimeTotal += convertCurrency(t.amount, t.currency, 'CNY'); });
+
+            document.getElementById('yesterday-earnings').innerText = state.privacyMode ? '****' : `+${totalActualYesterdayCNY.toFixed(2)}`;
+            document.getElementById('yesterday-earnings').classList.remove('profit-glow'); 
+            document.getElementById('total-earnings').innerText = state.privacyMode ? '****' : `+${allTimeTotal.toFixed(2)}`;
+            
+            populateDateSelector();
+            
+            // 渲染筛选器
+            window.renderBillFilters();
+
+            if (currentTab === 'assets') {
+                const grid = document.getElementById('accounts-grid');
+                grid.innerHTML = '';
+                state.accounts.forEach(acc => {
+                    let est = acc.apy > 0 ? `APY: ${acc.apy}%` : 'No Yield';
+                    if(acc.excessApy > 0) est += `~${acc.excessApy}%`;
+                    let balStr = state.privacyMode ? '****' : (['okx','alipay','wechat','bank','cash'].some(k => (acc.id+acc.name).toLowerCase().includes(k)) || acc.currency === 'CNY' ? acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : parseFloat(acc.balance.toFixed(12)).toString());
+
+                    const card = document.createElement('div');
+                    card.className = `relative overflow-hidden rounded-2xl p-4 h-32 shadow-lg transition-transform active:scale-[0.99] cursor-pointer text-white card-sheen w-full`; 
+                    card.style.backgroundColor = acc.color;
+                    card.onclick = function() { window.openAccountModal(acc.id, this); };
+                    const symbolIcon = getIconHtml(acc.id, acc.icon, 'white', 'symbol');
+                    const watermark = `<div class="absolute -right-4 -bottom-4 w-36 h-36 opacity-30 transform -rotate-12 pointer-events-none grayscale brightness-50 flex items-center justify-center overflow-hidden">${getIconHtml(acc.id, acc.icon, 'white', 'watermark')}</div>`;
+                    let balanceFontSize = balStr.length > 18 ? 'text-sm' : (balStr.length > 12 ? 'text-lg' : 'text-xl');
+                    card.innerHTML = `${watermark}<div class="relative z-10 flex flex-col h-full"><div class="flex items-center gap-2 mb-4"><div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md p-1 shadow-sm">${symbolIcon}</div><span class="font-bold text-sm text-shadow tracking-wide text-white">${acc.name}</span></div><div class="flex flex-col justify-end h-full mt-auto text-white"><div class="text-[10px] opacity-80 font-mono tracking-widest mb-0.5">BALANCE</div><div class="flex items-baseline gap-2"><div class="${balanceFontSize} font-bold font-mono tracking-wider text-shadow truncate">${balStr}</div></div><div class="text-[10px] opacity-90 font-mono mt-1 text-crypto-gold">${est}</div></div></div>`;
+                    grid.appendChild(card);
+                });
+                const addBtn = document.createElement('div');
+                addBtn.className = `bg-crypto-bg border-2 border-dashed border-crypto-border/50 rounded-2xl p-4 h-32 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-all text-crypto-subtext hover:text-white hover:border-crypto-primary/50 w-full`;
+                addBtn.onclick = () => window.openCreateAccount();
+                addBtn.innerHTML = `<i class="fa-solid fa-plus text-2xl mb-1"></i><span class="text-xs font-medium">Add Wallet</span>`;
+                grid.appendChild(addBtn);
+            }
+            if (currentTab === 'bills') {
+                const list = document.getElementById('transaction-list');
+                list.innerHTML = '';
+
+                // 【修改点】增加账户筛选逻辑
+                const filteredTxs = state.transactions.filter(t => 
+                    t.date.getFullYear() === currentYear && 
+                    t.date.getMonth() === currentMonth &&
+                    (currentFilterAccountId === 'all' || t.accountId === currentFilterAccountId || t.targetAccountId === currentFilterAccountId)
+                );
+
+                let monthInc = 0;
+                let monthExp = 0;
+                filteredTxs.forEach(t => {
+                    const valCNY = convertCurrency(t.amount, t.currency, 'CNY');
+                    if (t.type === 'income') monthInc += valCNY;
+                    else if (t.type === 'expense') monthExp += valCNY;
+                });
+                
+                document.getElementById('monthly-income').innerText = state.privacyMode ? '****' : `+${monthInc.toFixed(2)}`;
+                document.getElementById('monthly-expense').innerText = state.privacyMode ? '****' : `-${monthExp.toFixed(2)}`;
+
+                const sorted = [...filteredTxs].sort((a, b) => b.date - a.date);
+                if(sorted.length === 0) list.innerHTML = `<div class="text-center py-8 text-crypto-subtext text-xs opacity-50">本月无记录</div>`;
+                sorted.forEach(t => {
+                    const acc = state.accounts.find(a => a.id === t.accountId);
+                    let colorClass = t.type === 'expense' ? 'text-crypto-down' : (t.type === 'income' ? 'text-crypto-up' : 'text-crypto-primary');
+                    let sign = t.type === 'expense' ? '-' : (t.type === 'income' ? '+' : '');
+                    let desc = t.note || (categories.expense.find(c=>c.id===t.category)?.name) || 'Transaction';
+                    let iconBgColor = acc ? acc.color : '#161b22';
+                    if (acc && (acc.id === 'alipay' || acc.name.toLowerCase().includes('mashreq'))) iconBgColor = '#ffffff'; 
+
+                    let iconDisplay = acc ? `<div class="w-full h-full rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md p-2 shadow-inner">${getIconHtml(acc.id, acc.icon, 'white', 'symbol')}</div>` : `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-question text-gray-500"></i></div>`;
+
+                    if (t.category === 'interest') desc = `${acc ? acc.name : ''} 理财收益`; 
+                    else if (t.category === 'correction') desc = "余额人工修正";
+                    else if (t.type === 'transfer') { const toAcc = state.accounts.find(a => a.id === t.targetAccountId); desc = `划转至 ${toAcc ? toAcc.name : 'Unknown'}`; iconDisplay = `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-arrow-left text-crypto-primary text-xs"></i></div>`; }
+                    
+                    let displayAmount = t.amount.toFixed(2);
+                    if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
+                         displayAmount = parseFloat(t.amount.toFixed(12)).toString();
+                    }
+                    const item = document.createElement('div');
+                    item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
+                    item.onclick = function() { window.handleTxClick(this, t.id); };
+                    
+                    item.innerHTML = `
+                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden shrink-0" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-bold text-gray-300 truncate">${desc}</div>
+                                <div class="text-[10px] text-crypto-subtext">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div>
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0 ml-2">
+                            <div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div>
+                            <div class="text-[10px] text-crypto-subtext font-mono">${t.currency}</div>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+        };
         init();
         
         window.togglePrivacy = () => { state.privacyMode = !state.privacyMode; renderHome(); };
