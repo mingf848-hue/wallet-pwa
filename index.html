@@ -563,6 +563,10 @@
                             <i class="fa-solid fa-coins absolute left-3 top-4 text-crypto-subtext text-xs"></i>
                             <input type="text" inputmode="none" readonly id="edit-acc-balance" onclick="window.openUniversalKeypad('edit-acc-balance')" class="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-9 pr-3 text-white font-mono text-xl outline-none transition-all cursor-pointer">
                         </div>
+                        <div class="flex items-center gap-2 mt-2 ml-1 cursor-pointer" onclick="const cb=document.getElementById('correction-ignore-stats'); cb.checked=!cb.checked;">
+                             <input type="checkbox" id="correction-ignore-stats" class="w-3.5 h-3.5 rounded border-white/20 bg-white/5 cursor-pointer" style="accent-color: #00f0ff;">
+                             <label class="text-[10px] text-gray-400 cursor-pointer select-none">仅调整余额 (不计入收支报表)</label>
+                        </div>
                     </div>
                     
                     <div class="bg-white/5 rounded-xl p-3 border border-white/5">
@@ -1578,6 +1582,7 @@
             return `<i class="fa-solid fa-wallet text-white text-xs"></i>`;
         }
 
+        // 1. 打开编辑弹窗时，重置复选框
         window.openAccountModal = (id, element = null) => {
             editingId = id; 
             const acc = state.accounts.find(a => a.id === id);
@@ -1591,6 +1596,10 @@
             document.getElementById('edit-acc-apy').value = acc.apy || 0; 
             document.getElementById('edit-acc-limit').value = acc.tierLimit || 0; 
             document.getElementById('edit-acc-excess-apy').value = acc.excessApy || 0; 
+
+            // 【新增】默认不勾选“不计入统计”
+            const cb = document.getElementById('correction-ignore-stats');
+            if(cb) cb.checked = false;
 
             const delBtn = document.getElementById('btn-delete-acc');
             delBtn.innerHTML = '<i class="fa-solid fa-trash-can mr-1"></i>删除账户';
@@ -1626,13 +1635,11 @@
             editingId = null; 
         };
        
+        // 2. 保存设置时，读取复选框并写入 ignoreStats 标记
         window.saveAccountSettings = () => {
             if (!editingId) return;
             
-            if (!isRemoteDataLoaded) {
-                showToast("正在同步数据，请稍后...");
-                return;
-            }
+            if (!isRemoteDataLoaded) { showToast("正在同步数据，请稍后..."); return; }
 
             const acc = state.accounts.find(a => a.id === editingId);
             if (!acc) { window.closeAccountModal(); return; }
@@ -1652,6 +1659,10 @@
                 const absAmount = Math.abs(diff);
                 if (absAmount > 0) {
                     const isIncome = diff > 0;
+                    
+                    // 【新增】读取是否忽略统计
+                    const ignoreStats = document.getElementById('correction-ignore-stats').checked;
+
                     const correctionTx = {
                         id: Date.now(),
                         type: isIncome ? 'income' : 'expense',
@@ -1661,7 +1672,8 @@
                         targetAccountId: null,
                         category: 'correction',
                         date: new Date(),
-                        note: '余额人工修正'
+                        note: '余额人工修正' + (ignoreStats ? ' (不计入统计)' : ''),
+                        ignoreStats: ignoreStats // 保存此标记
                     };
                     state.transactions.push(correctionTx);
                 }
@@ -2435,6 +2447,9 @@
                 let monthInc = 0;
                 let monthExp = 0;
                 filteredTxs.forEach(t => {
+                    // 【修改】如果交易标记为“忽略统计”，则跳过计算
+                    if (t.ignoreStats) return;
+
                     const valCNY = convertCurrency(t.amount, t.currency, 'CNY');
                     if (t.type === 'income') monthInc += valCNY;
                     else if (t.type === 'expense') monthExp += valCNY;
