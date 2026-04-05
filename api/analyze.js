@@ -59,7 +59,7 @@ export default async function handler(req, res) {
         `;
 
         // 3. 调用 AI 接口
-        const proxyUrl = "https://gemini-proxy.aratakitofood.workers.dev/";
+        const proxyUrl = "https://geminiproxy-black-one.vercel.app/";
         
         const payload = {
             contents: [{
