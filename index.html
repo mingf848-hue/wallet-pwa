@@ -1139,7 +1139,7 @@
         window.processVoiceCommand = async (text) => {
             if (!text || text.trim() === '') return;
             
-            showLoading("AI 正在解析...");
+            showLoading("AI 正在解析并入账...");
             try {
                 // 让 AI 分析语音文本的提示词
                 const prompt = `你是一个极其聪明的私人理财记账助理。用户通过语音输入了一段记账内容，请精准分析并提取要素。
@@ -1151,7 +1151,7 @@
   "merchant": "商品或服务名称精简版（如买可乐填可乐）", 
   "category": "分类标识",
   "accountKeyword": "支付方式（如现金、微信、支付宝等，找不到填空）",
-  "type": "expense" // expense 或 income 或 transfer
+  "type": "expense" // 默认 expense，如果是发工资、收红包等收入则填 income
 }
 分类标识可选: food (餐饮), shop (购物), transport (交通), home (居住), fun (娱乐), other (其他)。
 `;
@@ -1161,24 +1161,21 @@
                 if (!jsonMatch) throw new Error("无法提取 JSON");
                 const data = JSON.parse(jsonMatch[0]);
                 
-                hideLoading();
-                window.openAddModal(data.type || 'expense'); 
-                
-                // 1. 填入金额
-                if (data.amount) { 
-                    temp.amount = data.amount.toString(); 
-                    document.getElementById('input-amount').innerText = temp.amount; 
+                let amount = parseFloat(data.amount);
+                if (isNaN(amount) || amount <= 0) {
+                    hideLoading();
+                    showToast("未能识别出金额，记账取消");
+                    return;
                 }
-                // 2. 填入备注
-                if (data.merchant) document.getElementById('input-note').value = data.merchant;
-                
-                // 3. 选中分类
-                if (data.category) { temp.catId = data.category; renderModalCategories(); }
-                
-                // 4. 智能匹配支付账户
+
+                let type = data.type === 'income' ? 'income' : 'expense';
+                let note = data.merchant || '语音记账';
+                let catId = data.category || 'other';
+
+                // 智能匹配支付账户
+                let targetAcc = state.accounts[0]; // 默认使用第一个账户兜底
                 if (data.accountKeyword || text) {
                     const searchStr = (data.accountKeyword || text).toLowerCase();
-                    // 模糊匹配账户规则
                     const matchedAcc = state.accounts.find(a => 
                         searchStr.includes(a.name.toLowerCase()) || 
                         searchStr.includes(a.id.toLowerCase()) || 
@@ -1186,13 +1183,33 @@
                         (searchStr.includes('微信') && a.id.includes('wechat')) ||
                         (searchStr.includes('支付宝') && a.id.includes('alipay'))
                     );
-                    if (matchedAcc) { 
-                        temp.accountId = matchedAcc.id; 
-                        document.getElementById('input-currency-label').innerText = matchedAcc.currency; 
-                        renderModalAccounts(); 
-                    }
+                    if (matchedAcc) targetAcc = matchedAcc; 
                 }
-                showToast("解析成功，请确认！");
+
+                // 直接修改余额
+                if (type === 'expense') {
+                    targetAcc.balance = fixPrecision(targetAcc.balance - amount);
+                } else {
+                    targetAcc.balance = fixPrecision(targetAcc.balance + amount);
+                }
+
+                // 直接生成新交易记录
+                state.transactions.push({
+                    id: Date.now(),
+                    type: type,
+                    amount: amount,
+                    currency: targetAcc.currency,
+                    accountId: targetAcc.id,
+                    category: catId,
+                    date: new Date(),
+                    note: note
+                });
+                
+                // 保存并同步到云端 (这会隐式触发 renderHome 更新列表)
+                saveData();
+                hideLoading();
+                showToast(`✅ 已记账: ${note} ${amount}${targetAcc.currency}`);
+
             } catch (err) { 
                 console.error("AI 语音解析失败", err); 
                 hideLoading(); 
