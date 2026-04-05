@@ -58,8 +58,14 @@ export default async function handler(req, res) {
           不要使用 Markdown，直接返回纯 JSON 字符串。
         `;
 
-        // 3. 调用 AI 接口
-        const proxyUrl = "https://geminiproxy-black-one.vercel.app/";
+        // 3. 调用 AI 接口 (★ 移除代理，直连官方 API 并读取环境变量 ★)
+        const apiKey = process.env.GEMINI_API_KEY; 
+        if (!apiKey) {
+            console.error("Missing GEMINI_API_KEY environment variable");
+            return res.status(500).json({ error: "服务器未配置 GEMINI_API_KEY" });
+        }
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: [{
@@ -70,13 +76,16 @@ export default async function handler(req, res) {
             }]
         };
 
-        const aiRes = await fetch(proxyUrl, {
+        const aiRes = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
 
-        if (!aiRes.ok) throw new Error("AI Request Failed: " + aiRes.statusText);
+        if (!aiRes.ok) {
+            const errText = await aiRes.text();
+            throw new Error(`AI Request Failed (${aiRes.status}): ${errText}`);
+        }
         
         const aiData = await aiRes.json();
         
@@ -93,12 +102,11 @@ export default async function handler(req, res) {
             items = Array.isArray(parsed) ? parsed : [parsed];
         } catch (e) {
             console.error("JSON Parse Error:", rawText);
-            return res.status(500).json({ error: "AI 返回的数据格式无法解析" });
+            return res.status(500).json({ error: "AI 返回的数据格式无法解析", rawText });
         }
 
-        // 4. 读取 Firebase 数据库 (★ 替换为 Admin SDK 写法 ★)
-        // Admin SDK 不需要 signInAnonymously
-        const docRef = db.doc('bitledger_storage/my_personal_wallet_v2'); // 直接定位
+        // 4. 读取 Firebase 数据库
+        const docRef = db.doc('bitledger_storage/my_personal_wallet_v2'); 
         const docSnap = await docRef.get();
         
         let currentState = docSnap.exists ? docSnap.data().state : {
@@ -109,7 +117,7 @@ export default async function handler(req, res) {
         let successMsg = [];
         let timeOffset = 0; 
         
-        // 5. 遍历处理每一笔交易 (★ 完全保留你的匹配逻辑 ★)
+        // 5. 遍历处理每一笔交易
         for (const item of items) {
             let targetAcc = null;
 
@@ -122,7 +130,6 @@ export default async function handler(req, res) {
                     if (manualPlatform.includes('微信')) targetAcc = currentState.accounts.find(a => a.id.includes('wechat'));
                     if (manualPlatform.includes('支付宝')) targetAcc = currentState.accounts.find(a => a.id.includes('alipay'));
                 }
-                // ★★★ 你的原话逻辑：这里确保银行卡能匹配到 Mashreq ★★★
                 if (!targetAcc && (manualPlatform.includes('银行') || choice.includes('bank') || choice.includes('card'))) {
                      targetAcc = currentState.accounts.find(a => a.name.toLowerCase().includes('mashreq'));
                      if (!targetAcc) targetAcc = currentState.accounts.find(a => a.name.includes('银行') || a.name.toLowerCase().includes('bank'));
@@ -152,10 +159,10 @@ export default async function handler(req, res) {
                 id: Date.now() - timeOffset + Math.random(), 
                 type: item.type || 'expense',
                 amount: parseFloat(item.amount),
-                currency: targetAcc.currency || 'CNY', // 这里用 targetAcc 的币种
+                currency: targetAcc.currency || 'CNY',
                 accountId: targetAcc.id,
                 category: item.category || 'other', 
-                date: finalTxDate.toISOString(), // 绝对使用 lockedTime
+                date: finalTxDate.toISOString(),
                 merchant: item.merchant, 
                 note: finalNote
             };
@@ -170,8 +177,7 @@ export default async function handler(req, res) {
             successMsg.push(`${item.merchant} ${newTx.type==='income'?'+':'-'}${newTx.amount}`);
         }
 
-        // 保存 (★ 替换为 Admin SDK 写法 ★)
-        // Admin SDK 使用 set() 或 update()
+        // 保存
         await docRef.set({ state: currentState, updatedAt: new Date() }, { merge: true });
 
         let displayMsg = successMsg.slice(0, 3).join('\n');
