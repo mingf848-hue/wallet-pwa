@@ -2341,16 +2341,20 @@
         }
         
         async function callGemini(prompt, imageBase64 = null) {
-            const url = `https://gemini-proxy.aratakitofood.workers.dev/`; 
-            const parts = [{ text: prompt }];
-            if (imageBase64) parts.push({ inlineData: { mimeType: "image/jpeg", data: imageBase64.split(',')[1] || imageBase64 } }); 
-            const payload = { contents: [{ parts: parts }] };
+            // 指向你自己的 Vercel 后端接口，彻底不再使用外部第三方代理
+            const url = `/api/gemini`; 
+            const payload = { 
+                prompt: prompt,
+                model: "gemini-3.1-flash", 
+                imageBase64: imageBase64
+            };
             const delays = [1000, 2000, 4000];
             for (let i = 0; i <= delays.length; i++) {
                 try {
                     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     if (!response.ok) throw new Error(`Status ${response.status}`);
                     const data = await response.json();
+                    if (data.error) throw new Error(data.error);
                     if (!data.candidates || !data.candidates[0].content) throw new Error("AI 未返回有效内容");
                     return data.candidates[0].content.parts[0].text;
                 } catch (e) {
@@ -2405,8 +2409,12 @@
                     const prompt = `你是一个专业的财务会计助手。请分析这张账单图片，提取关键信息并严格按照以下 JSON 格式返回 (不要使用 Markdown 代码块，只返回纯文本 JSON): {"amount": 0.00, "currency": "CNY", "merchant": "商家名称", "category": "food"}`;
                     try {
                         const aiResponse = await callGemini(prompt, base64Data);
-                        const cleanJson = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                        const data = JSON.parse(cleanJson);
+                        
+                        // 强化 JSON 提取：防 AI 废话崩盘
+                        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+                        if (!jsonMatch) throw new Error("无法提取 JSON");
+                        const data = JSON.parse(jsonMatch[0]);
+                        
                         hideLoading();
                         window.openAddModal('expense'); 
                         if (data.amount) { temp.amount = data.amount.toString(); document.getElementById('input-amount').innerText = temp.amount; }
@@ -2438,8 +2446,12 @@
                 const totalBalance = state.accounts.reduce((sum, acc) => sum + (acc.balance * (exchangeRates[acc.currency] || 1)), 0).toFixed(0);
                 const prompt = `你是一个擅长讲故事的数据分析师。请分析以下用户的流水，生成一份**JSON格式**的趣味报告。 **用户总资产折合:** 约 ${totalBalance} CNY **近期流水详情:** ${txList} **请严格按照以下 JSON 结构返回 (不要 Markdown 标记):** { "month_keyword": "颜值正义", "keyword_desc": "在变美这件事上，你从不吝啬。", "total_expense_display": "1,234.56 CNY", "global_rank": 85, "max_single_day": { "date": "2023-10-24", "amount_display": "135 AED", "desc": "这一天你似乎出手阔绰，把钱花在了..." }, "category_highlight": [ {"name": "餐饮", "percent": 40, "tag": "干饭王"}, {"name": "购物", "percent": 30, "tag": "剁手党"} ], "late_night_count": 3, "soul_message": "生活不只有眼前的苟且..." }`;
                 const rawText = await callGemini(prompt);
-                const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                const data = JSON.parse(jsonStr);
+                
+                // 增强 JSON 提取逻辑：精准抠出大括号内部内容，无视 AI 前后的废话
+                const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("无法从 AI 回复中提取 JSON");
+                const data = JSON.parse(jsonMatch[0]);
+                
                 const container = document.getElementById('ai-report-content');
                 const bgGradient = "bg-gradient-to-b from-[#1a1f35] via-[#202840] to-[#0d1117]";
                 container.innerHTML = `<div class="${bgGradient} min-h-full text-white pb-10"><div class="flex flex-col items-center justify-center pt-10 pb-10 border-b border-white/5 relative overflow-hidden"><div class="absolute top-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div><div class="text-xs text-crypto-primary tracking-[0.3em] uppercase mb-4">BitLedger Insight</div><div class="relative group"><div class="absolute -inset-1 bg-gradient-to-r from-crypto-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div><div class="relative px-8 py-6 bg-crypto-card ring-1 ring-white/10 rounded-xl flex flex-col items-center"><h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-2" style="font-family: 'STSong', serif;">${data.month_keyword}</h1><p class="text-xs text-gray-400 italic">“${data.keyword_desc}”</p></div></div></div><div class="p-6"><div class="flex items-baseline gap-1 mb-1"><span class="text-sm text-gray-400">近期总支出 (估算)</span></div><div class="flex items-baseline gap-2 mb-4"><span class="text-4xl font-mono font-bold text-white">${data.total_expense_display}</span></div><div class="bg-white/5 rounded-lg p-3 flex items-center gap-3 border border-white/10"><div class="w-10 h-10 rounded-full bg-crypto-gold/20 flex items-center justify-center text-crypto-gold"><i class="fa-solid fa-trophy"></i></div><div class="flex-1"><div class="text-xs text-gray-400">消费能力值</div><div class="text-sm font-bold">超越了全球 <span class="text-crypto-gold text-lg">${data.global_rank}%</span> 的用户</div></div></div></div><div class="mx-6 bg-crypto-card/50 rounded-2xl p-5 border border-white/5 mb-6 relative overflow-hidden"><i class="fa-solid fa-calendar-day absolute -right-4 -bottom-4 text-6xl text-white/5"></i><h3 class="text-sm font-bold text-gray-300 mb-4 flex items-center gap-2"><span class="w-1 h-4 bg-crypto-primary rounded-full"></span> 难忘的一天</h3><div class="pl-2 border-l-2 border-white/10 ml-1"><div class="text-xs text-crypto-subtext mb-1">${data.max_single_day.date}</div><div class="text-xl font-bold text-white mb-2">${data.max_single_day.amount_display}</div><p class="text-xs text-gray-400 leading-relaxed">${data.max_single_day.desc}</p></div></div><div class="mx-6 mb-8"><h3 class="text-sm font-bold text-gray-300 mb-4 flex items-center gap-2"><span class="w-1 h-4 bg-purple-500 rounded-full"></span> 钱都去哪了</h3><div class="flex items-center gap-4"><div class="w-1/2 h-32 relative"><canvas id="reportChart"></canvas></div><div class="w-1/2 space-y-3">${data.category_highlight.map(c => `<div><div class="flex justify-between text-xs mb-1"><span class="text-gray-300">${c.name}</span><span class="font-mono text-white">${c.percent}%</span></div><div class="text-[10px] px-2 py-0.5 bg-white/10 rounded inline-block text-crypto-primary transform scale-90 origin-left"># ${c.tag}</div></div>`).join('')}</div></div></div>${data.late_night_count > 0 ? `<div class="mx-6 mb-8 flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-blue-900/30 to-transparent border border-blue-500/20"><i class="fa-solid fa-moon text-blue-400 text-xl"></i><div><div class="text-sm text-white font-bold">深夜哲学家</div><div class="text-xs text-gray-400">本月有 <span class="text-blue-400 font-bold">${data.late_night_count}</span> 次在深夜消费</div></div></div>` : ''}<div class="mt-10 px-10 text-center"><i class="fa-solid fa-quote-left text-crypto-subtext/30 text-2xl mb-2 block"></i><p class="text-sm font-serif text-gray-300 leading-loose italic tracking-wide">${data.soul_message}</p><div class="w-8 h-1 bg-white/10 mx-auto mt-6 rounded-full"></div><div class="mt-4 text-[10px] text-gray-600">BitLedger AI Analysis</div></div></div>`;
