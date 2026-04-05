@@ -1226,14 +1226,17 @@
                         <span id="tx-modal-account" class="text-sm font-bold text-white">${acc ? acc.name : '未知账户'}</span>
                     </div>
                     
-                    <div class="flex justify-between items-start p-3">
+                    <div class="flex justify-between items-start p-3 hover:bg-white/10 active:bg-white/5 rounded-xl cursor-pointer transition-colors" onclick="window.editTransactionNote(${tx.id})">
                         <div class="flex items-start gap-3 pt-0.5 shrink-0">
                             <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 shrink-0">
                                 <i class="fa-regular fa-comment-dots text-xs"></i>
                             </div>
                             <span class="text-sm text-gray-300 py-1.5">备注信息</span>
                         </div>
-                        <span id="tx-modal-note" class="text-sm text-gray-400 text-right break-words flex-1 ml-4 py-1.5 leading-relaxed whitespace-pre-wrap">${tx.note || "无"}</span>
+                        <div class="flex-1 ml-4 flex items-center justify-end gap-2 py-1.5">
+                            <span id="tx-modal-note" class="text-sm text-gray-400 text-right break-words leading-relaxed whitespace-pre-wrap">${tx.note || "无"}</span>
+                            <i class="fa-solid fa-pen text-[10px] text-gray-500"></i>
+                        </div>
                     </div>
 
                 </div>
@@ -1314,7 +1317,38 @@
                 window.closeTransactionModal();
             }
         };
+        window.editTransactionNote = (txId) => {
+            if (!isRemoteDataLoaded) {
+                showToast("正在同步数据，请稍后...");
+                return;
+            }
+            
+            const tx = state.transactions.find(t => t.id === txId);
+            if (!tx) return;
 
+            const currentNote = tx.note || "";
+            
+            // 使用原生的 prompt 弹窗，在移动端体验最稳，防止虚拟键盘遮挡 UI
+            const newNote = prompt("修改备注信息：", currentNote);
+
+            // 如果用户点击了取消，或者什么都没改，直接返回
+            if (newNote === null || newNote.trim() === currentNote) return;
+
+            // 更新状态
+            tx.note = newNote.trim();
+            
+            // 保存到数据库
+            saveData();
+            
+            // 立即更新当前弹窗内的文字，提供即时反馈
+            const noteSpan = document.getElementById('tx-modal-note');
+            if (noteSpan) noteSpan.innerText = tx.note || "无";
+            
+            // 重新渲染首页，确保背后账单列表里的备注也同步更新
+            renderHome();
+            
+            showToast("备注已更新");
+        };
         window.openCreateAccount = () => { 
             document.getElementById('new-acc-name').value = '';
             document.getElementById('new-acc-balance').value = '0';
