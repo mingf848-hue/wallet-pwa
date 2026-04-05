@@ -257,6 +257,18 @@
         .prose h3 { color: #e6edf3; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
         .prose p { color: #8b949e; margin-bottom: 0.5rem; font-size: 0.9rem; line-height: 1.5; }
         .prose strong { color: #00f0ff; }
+
+        /* --- 麦克风长按特效 --- */
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.8); }
+            100% { box-shadow: 0 0 0 25px rgba(0, 240, 255, 0); }
+        }
+        .recording-mode {
+            animation: pulse-ring 1s infinite cubic-bezier(0.4, 0, 0.2, 1) !important;
+            background-color: #00f0ff !important; 
+            border-color: rgba(0, 240, 255, 0.5) !important;
+            transform: scale(1.15) !important;
+        }
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
@@ -385,14 +397,14 @@
                         <span class="font-bold tracking-wide italic">BitLedger<span class="text-crypto-primary">Pro</span></span>
                     </div>
                     
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-4">
                         <button onclick="window.openAiReport()" class="flex items-center justify-center active:scale-95 transition-transform">
                              <img src="https://raw.githubusercontent.com/mingf848-hue/iconelf/main/gemini-text%20(1).svg" 
                                   class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
                                   alt="AI Analysis">
                         </button>
-
-                        <button onclick="document.getElementById('receipt-upload').click()" class="text-crypto-subtext hover:text-white transition-colors">
+                        
+                        <button onclick="document.getElementById('receipt-upload').click()" class="text-crypto-subtext hover:text-white transition-colors active:scale-95">
                             <i class="fa-solid fa-camera text-lg"></i>
                         </button>
                         <input type="file" id="receipt-upload" accept="image/*" class="hidden" onchange="window.handleReceiptUpload(this)">
@@ -514,8 +526,16 @@
             </button>
             
             <div id="add-btn-wrapper" class="relative mb-8 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform origin-center"> 
-                <button onclick="window.openAddModal('expense')" class="w-14 h-14 bg-crypto-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] active:scale-95 transition-transform border-4 border-crypto-bg group hover:scale-105">
-                    <i class="fa-solid fa-plus text-xl group-active:rotate-90 transition-transform duration-300"></i>
+                <button id="main-add-btn" 
+                    oncontextmenu="return false;"
+                    ontouchstart="window.handleAddStart(event)" 
+                    ontouchend="window.handleAddEnd(event)" 
+                    ontouchcancel="window.handleAddCancel(event)"
+                    onmousedown="window.handleAddStart(event)"
+                    onmouseup="window.handleAddEnd(event)"
+                    onmouseleave="window.handleAddCancel(event)"
+                    class="w-14 h-14 bg-crypto-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all duration-300 border-4 border-crypto-bg group select-none touch-none">
+                    <i id="main-add-icon" class="fa-solid fa-plus text-xl transition-transform duration-300"></i>
                 </button>
             </div>
             
@@ -877,9 +897,16 @@
             target: null 
         };
 
-
         let isRemoteDataLoaded = false;
         let activeKeypadInputId = null;
+
+        // 【新增】语音识别相关的状态与变量
+        let speechRecognition = null;
+        let addPressTimer = null;
+        let isLongPressingAdd = false;
+        let finalVoiceText = "";
+        let shouldProcessVoice = false;
+        let isTouchBtnDevice = false;
 
         const defaultAccounts = [
             { id: 'alipay', name: '支付宝', icon: 'alipay', color: '#1677ff', currency: 'CNY', balance: 0, apy: 2.5, tierLimit: 0, excessApy: 0 },
@@ -975,6 +1002,205 @@
             } catch (e) { console.warn("[Cache] Load failed", e); }
             return cacheHit;
         }
+
+        // ==========================================
+        // 【长按录音】交互及 Web Speech API 逻辑
+        // ==========================================
+        function initSpeechRecognition() {
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+                speechRecognition = new SpeechRecognitionAPI();
+                speechRecognition.continuous = false; // 录完一句话就停
+                speechRecognition.interimResults = true; // 实时显示中间结果
+                speechRecognition.lang = 'zh-CN';
+
+                speechRecognition.onstart = function() {
+                    showToast("🎙️ 正在聆听，请说话...");
+                };
+
+                speechRecognition.onresult = function(event) {
+                    let interimTranscript = '';
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+                        else interimTranscript += event.results[i][0].transcript;
+                    }
+                    
+                    finalVoiceText = finalTranscript || interimTranscript;
+                    if (finalVoiceText) {
+                        document.getElementById('toast-msg').innerText = "🎙️ " + finalVoiceText;
+                        document.getElementById('toast').classList.remove('hidden');
+                    }
+                };
+
+                speechRecognition.onerror = function(event) {
+                    console.error('Speech recognition error', event.error);
+                    if (event.error !== 'aborted') {
+                        showToast('未能识别: ' + event.error);
+                        stopPushToTalk(false);
+                    }
+                };
+
+                speechRecognition.onend = function() {
+                    if (shouldProcessVoice && finalVoiceText.trim() !== '') {
+                        window.processVoiceCommand(finalVoiceText);
+                    } else if (shouldProcessVoice && finalVoiceText.trim() === '') {
+                        showToast('未听到任何声音');
+                    }
+                    shouldProcessVoice = false;
+                };
+            }
+        }
+
+        function startPushToTalk() {
+            if (!speechRecognition) initSpeechRecognition();
+            if (!speechRecognition) {
+                showToast("当前浏览器不支持语音识别，请使用 Safari 或 Chrome");
+                return;
+            }
+            try {
+                const btn = document.getElementById('main-add-btn');
+                const icon = document.getElementById('main-add-icon');
+                
+                btn.style.transform = ''; // 移除内联缩放
+                btn.classList.add('recording-mode');
+                icon.className = 'fa-solid fa-microphone text-2xl text-white';
+                
+                speechRecognition.start();
+            } catch(e) {
+                console.error(e);
+                showToast("无法启动麦克风权限");
+                stopPushToTalk(false);
+            }
+        }
+
+        function stopPushToTalk(process = true) {
+            const btn = document.getElementById('main-add-btn');
+            const icon = document.getElementById('main-add-icon');
+            btn.classList.remove('recording-mode');
+            icon.className = 'fa-solid fa-plus text-xl transition-transform duration-300';
+            
+            shouldProcessVoice = process;
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
+            if (!process) {
+                document.getElementById('toast').classList.add('hidden');
+            }
+        }
+
+        // --- 按钮触控/鼠标事件处理 ---
+        window.handleAddStart = (e) => {
+            if (e.type === 'touchstart') isTouchBtnDevice = true;
+            if (e.type === 'mousedown' && isTouchBtnDevice) return; // 避免双重触发
+            
+            if (addPressTimer) clearTimeout(addPressTimer);
+            isLongPressingAdd = false;
+            finalVoiceText = "";
+            
+            const btn = document.getElementById('main-add-btn');
+            btn.style.transform = 'scale(0.95)'; // 按下瞬间的物理下压感
+
+            addPressTimer = setTimeout(() => {
+                isLongPressingAdd = true;
+                if (navigator.vibrate) navigator.vibrate(50); // 震动反馈
+                startPushToTalk();
+            }, 400); // 400ms 判定为长按
+        };
+
+        window.handleAddEnd = (e) => {
+            if (e && e.cancelable && e.type !== 'touchend') e.preventDefault();
+            const btn = document.getElementById('main-add-btn');
+            btn.style.transform = ''; // 恢复
+
+            if (addPressTimer) clearTimeout(addPressTimer);
+            
+            if (isLongPressingAdd) {
+                stopPushToTalk(true); // 松开时停止录音并处理
+            } else {
+                // 短按打开弹窗
+                window.openAddModal('expense');
+            }
+            isLongPressingAdd = false;
+        };
+
+        window.handleAddCancel = (e) => {
+            const btn = document.getElementById('main-add-btn');
+            btn.style.transform = '';
+            
+            if (addPressTimer) clearTimeout(addPressTimer);
+            if (isLongPressingAdd) {
+                stopPushToTalk(false); // 取消录音且不处理
+            }
+            isLongPressingAdd = false;
+        };
+
+        window.processVoiceCommand = async (text) => {
+            if (!text || text.trim() === '') return;
+            
+            showLoading("AI 正在解析...");
+            try {
+                // 让 AI 分析语音文本的提示词
+                const prompt = `你是一个极其聪明的私人理财记账助理。用户通过语音输入了一段记账内容，请精准分析并提取要素。
+用户语音文本: "${text}"
+
+请严格按照以下 JSON 格式返回结果 (不要 markdown 代码块，只返回纯文本 JSON): 
+{
+  "amount": 10.00, 
+  "merchant": "商品或服务名称精简版（如买可乐填可乐）", 
+  "category": "分类标识",
+  "accountKeyword": "支付方式（如现金、微信、支付宝等，找不到填空）",
+  "type": "expense" // expense 或 income 或 transfer
+}
+分类标识可选: food (餐饮), shop (购物), transport (交通), home (居住), fun (娱乐), other (其他)。
+`;
+                const aiResponse = await callGemini(prompt, null);
+                
+                const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("无法提取 JSON");
+                const data = JSON.parse(jsonMatch[0]);
+                
+                hideLoading();
+                window.openAddModal(data.type || 'expense'); 
+                
+                // 1. 填入金额
+                if (data.amount) { 
+                    temp.amount = data.amount.toString(); 
+                    document.getElementById('input-amount').innerText = temp.amount; 
+                }
+                // 2. 填入备注
+                if (data.merchant) document.getElementById('input-note').value = data.merchant;
+                
+                // 3. 选中分类
+                if (data.category) { temp.catId = data.category; renderModalCategories(); }
+                
+                // 4. 智能匹配支付账户
+                if (data.accountKeyword || text) {
+                    const searchStr = (data.accountKeyword || text).toLowerCase();
+                    // 模糊匹配账户规则
+                    const matchedAcc = state.accounts.find(a => 
+                        searchStr.includes(a.name.toLowerCase()) || 
+                        searchStr.includes(a.id.toLowerCase()) || 
+                        (searchStr.includes('现金') && (a.icon === 'fa-wallet' || a.name.includes('现'))) ||
+                        (searchStr.includes('微信') && a.id.includes('wechat')) ||
+                        (searchStr.includes('支付宝') && a.id.includes('alipay'))
+                    );
+                    if (matchedAcc) { 
+                        temp.accountId = matchedAcc.id; 
+                        document.getElementById('input-currency-label').innerText = matchedAcc.currency; 
+                        renderModalAccounts(); 
+                    }
+                }
+                showToast("解析成功，请确认！");
+            } catch (err) { 
+                console.error("AI 语音解析失败", err); 
+                hideLoading(); 
+                showToast("AI 无法理解这段语音，请重试或手动输入"); 
+            }
+        };
+        // ==========================================
+
 
         async function init() {
             loadFromCache();
@@ -2341,8 +2567,15 @@
         }
         
         async function callGemini(prompt, imageBase64 = null) {
-            // 指向你自己的 Vercel 后端接口，彻底不再使用外部第三方代理
-            const url = `/api/gemini`; 
+            // 默认使用相对路径 (适用于真实的 Vercel 线上环境)
+            let url = `/api/gemini`; 
+            
+            // 兼容修复：如果你在当前的“预览(Preview)”沙盒环境测试
+            if (window.location.origin.includes('blob:') || window.location.origin.includes('scf.usercontent.goog')) {
+                // 替换为你的 Vercel 绝对域名 (根据你之前截图的快捷指令域名)
+                url = `https://wallet-drab-nine.vercel.app/api/gemini`; 
+            }
+
             const payload = { 
                 prompt: prompt,
                 model: "gemini-3-flash-preview", 
