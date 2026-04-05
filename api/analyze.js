@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         }
 
         // 修改点：使用 gemini-3.1-flash 模型
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: [{
