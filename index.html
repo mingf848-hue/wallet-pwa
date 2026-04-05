@@ -951,12 +951,14 @@
         }
 
         function loadFromCache() {
+            let cacheHit = false;
             try {
                 const cachedData = localStorage.getItem(CACHE_KEY);
                 if (cachedData) {
                     const parsed = JSON.parse(cachedData);
                     if (parsed.transactions) parsed.transactions.forEach(t => t.date = new Date(t.date));
                     state = parsed;
+                    cacheHit = true;
                 }
                 const cachedRates = localStorage.getItem(RATE_CACHE_KEY);
                 if (cachedRates) {
@@ -964,8 +966,14 @@
                     const display = document.getElementById('rate-display');
                     if(display && exchangeRates.USDT) display.innerText = exchangeRates.USDT.toFixed(2);
                 }
-                if (cachedData || cachedRates) renderHome();
+                if (cachedData || cachedRates) {
+                    renderHome();
+                    // 【关键修复】如果读取到了本地缓存，立即隐藏全屏 Loading，实现“秒开”
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                    document.getElementById('loading-overlay').classList.remove('flex');
+                }
             } catch (e) { console.warn("[Cache] Load failed", e); }
+            return cacheHit;
         }
 
         async function init() {
