@@ -746,8 +746,8 @@
             </div>
         </div>
 
-        <div id="toast" class="fixed top-28 left-1/2 -translate-x-1/2 bg-crypto-card border border-crypto-primary text-crypto-primary px-6 py-3 rounded-full text-sm font-mono hidden z-[90] shadow-lg shadow-crypto-primary/20 flex items-center gap-2">
-            <i class="fa-solid fa-check-circle"></i><span id="toast-msg">Success</span>
+        <div id="toast" class="fixed top-28 left-1/2 -translate-x-1/2 bg-crypto-card border border-crypto-primary text-crypto-primary px-6 py-3 rounded-full text-sm font-mono hidden z-[90] shadow-lg shadow-crypto-primary/20 flex items-center gap-2 transition-all duration-300">
+            <span id="toast-msg">Success</span>
         </div>
 
         <!-- Global Universal Keypad -->
@@ -900,7 +900,7 @@
         let isRemoteDataLoaded = false;
         let activeKeypadInputId = null;
 
-        // 【新增】语音识别相关的状态与变量
+        // 语音识别相关的状态与变量
         let speechRecognition = null;
         let addPressTimer = null;
         let isLongPressingAdd = false;
@@ -995,9 +995,15 @@
                 }
                 if (cachedData || cachedRates) {
                     renderHome();
-                    // 【关键修复】如果读取到了本地缓存，立即隐藏全屏 Loading，实现“秒开”
+                    // 无论有没有网，先干掉 Loading，实现秒开！
                     document.getElementById('loading-overlay').classList.add('hidden');
                     document.getElementById('loading-overlay').classList.remove('flex');
+                    
+                    // 【离线支持核心】如果当前没网，直接放行所有的操作
+                    if (!navigator.onLine) {
+                        isRemoteDataLoaded = true;
+                        showToast("⚠️ 无网络连接，已进入离线模式");
+                    }
                 }
             } catch (e) { console.warn("[Cache] Load failed", e); }
             return cacheHit;
@@ -1010,8 +1016,8 @@
             if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
                 const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
                 speechRecognition = new SpeechRecognitionAPI();
-                speechRecognition.continuous = false; // 录完一句话就停
-                speechRecognition.interimResults = true; // 实时显示中间结果
+                speechRecognition.continuous = false; 
+                speechRecognition.interimResults = true; 
                 speechRecognition.lang = 'zh-CN';
 
                 speechRecognition.onstart = function() {
@@ -1054,6 +1060,10 @@
         }
 
         function startPushToTalk() {
+            if (!navigator.onLine) {
+                showToast("⚠️ 离线状态无法使用语音记账");
+                return;
+            }
             if (!speechRecognition) initSpeechRecognition();
             if (!speechRecognition) {
                 showToast("当前浏览器不支持语音识别，请使用 Safari 或 Chrome");
@@ -1063,7 +1073,7 @@
                 const btn = document.getElementById('main-add-btn');
                 const icon = document.getElementById('main-add-icon');
                 
-                btn.style.transform = ''; // 移除内联缩放
+                btn.style.transform = ''; 
                 btn.classList.add('recording-mode');
                 icon.className = 'fa-solid fa-microphone text-2xl text-white';
                 
@@ -1093,33 +1103,32 @@
         // --- 按钮触控/鼠标事件处理 ---
         window.handleAddStart = (e) => {
             if (e.type === 'touchstart') isTouchBtnDevice = true;
-            if (e.type === 'mousedown' && isTouchBtnDevice) return; // 避免双重触发
+            if (e.type === 'mousedown' && isTouchBtnDevice) return; 
             
             if (addPressTimer) clearTimeout(addPressTimer);
             isLongPressingAdd = false;
             finalVoiceText = "";
             
             const btn = document.getElementById('main-add-btn');
-            btn.style.transform = 'scale(0.95)'; // 按下瞬间的物理下压感
+            btn.style.transform = 'scale(0.95)'; 
 
             addPressTimer = setTimeout(() => {
                 isLongPressingAdd = true;
-                if (navigator.vibrate) navigator.vibrate(50); // 震动反馈
+                if (navigator.vibrate) navigator.vibrate(50); 
                 startPushToTalk();
-            }, 400); // 400ms 判定为长按
+            }, 400); 
         };
 
         window.handleAddEnd = (e) => {
             if (e && e.cancelable && e.type !== 'touchend') e.preventDefault();
             const btn = document.getElementById('main-add-btn');
-            btn.style.transform = ''; // 恢复
+            btn.style.transform = ''; 
 
             if (addPressTimer) clearTimeout(addPressTimer);
             
             if (isLongPressingAdd) {
-                stopPushToTalk(true); // 松开时停止录音并处理
+                stopPushToTalk(true); 
             } else {
-                // 短按打开弹窗
                 window.openAddModal('expense');
             }
             isLongPressingAdd = false;
@@ -1131,7 +1140,7 @@
             
             if (addPressTimer) clearTimeout(addPressTimer);
             if (isLongPressingAdd) {
-                stopPushToTalk(false); // 取消录音且不处理
+                stopPushToTalk(false); 
             }
             isLongPressingAdd = false;
         };
@@ -1141,7 +1150,6 @@
             
             showLoading("AI 正在解析并入账...");
             try {
-                // 让 AI 分析语音文本的提示词
                 const prompt = `你是一个极其聪明的私人理财记账助理。用户通过语音输入了一段记账内容，请精准分析并提取要素。
 用户语音文本: "${text}"
 
@@ -1172,8 +1180,7 @@
                 let note = data.merchant || '语音记账';
                 let catId = data.category || 'other';
 
-                // 智能匹配支付账户
-                let targetAcc = state.accounts[0]; // 默认使用第一个账户兜底
+                let targetAcc = state.accounts[0]; 
                 if (data.accountKeyword || text) {
                     const searchStr = (data.accountKeyword || text).toLowerCase();
                     const matchedAcc = state.accounts.find(a => 
@@ -1186,14 +1193,12 @@
                     if (matchedAcc) targetAcc = matchedAcc; 
                 }
 
-                // 直接修改余额
                 if (type === 'expense') {
                     targetAcc.balance = fixPrecision(targetAcc.balance - amount);
                 } else {
                     targetAcc.balance = fixPrecision(targetAcc.balance + amount);
                 }
 
-                // 直接生成新交易记录
                 state.transactions.push({
                     id: Date.now(),
                     type: type,
@@ -1205,7 +1210,6 @@
                     note: note
                 });
                 
-                // 保存并同步到云端 (这会隐式触发 renderHome 更新列表)
                 saveData();
                 hideLoading();
                 showToast(`✅ 已记账: ${note} ${amount}${targetAcc.currency}`);
@@ -1248,15 +1252,15 @@
                         currentUser = user;
                         setupFixedRealtimeSync(appId);
                         
-                        // ★★★ 关键修改：登录成功后，立刻去云端拉取最新汇率 ★★★
-                        await fetchExchangeRate(); 
+                        if (navigator.onLine) {
+                            await fetchExchangeRate(); 
+                        }
                     }
                 });
 
             } catch (e) {
                 console.error("Init failed", e);
             } finally {
-                // 移除了这里的 await fetchExchangeRate(); 避免未登录时调用
                 renderHome();
                 renderIconSelector(); 
                 window.switchTab('bills'); 
@@ -1273,9 +1277,8 @@
             renderHome();
         };
 
-        // --- 修复1: Tab 切换防抖 ---
         window.switchTab = (tab) => {
-            if (currentTab === tab) return; // 核心修复：如果在当前页，不执行任何操作
+            if (currentTab === tab) return; 
 
             currentTab = tab;
             const billsBtn = document.getElementById('nav-bills');
@@ -1300,7 +1303,6 @@
             renderHome();
         };
 
-        // --- LIST SCROLL SHADOW HANDLER ---
         window.handleListScroll = (element, shadowId) => {
             const shadow = document.getElementById(shadowId);
             if (!shadow) return;
@@ -1314,9 +1316,24 @@
         function setupFixedRealtimeSync(appId) {
             if(unsubscribeDoc) unsubscribeDoc(); 
             const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
+            
+            // 【离线恢复机制】如果刚联网且发现有未上传的离线数据，立刻推上去
+            if (navigator.onLine && localStorage.getItem('bitledger_offline_pending') === 'true') {
+                const localData = localStorage.getItem(CACHE_KEY);
+                if (localData) {
+                    setDoc(docRef, { state: JSON.parse(localData), updatedAt: new Date() })
+                        .then(() => localStorage.removeItem('bitledger_offline_pending'));
+                }
+            }
+
             unsubscribeDoc = onSnapshot(docRef, async (docSnap) => {
+                // 【核心保护】如果本地正有离线数据没上传，坚决不能让云端的旧数据覆盖本地！
+                if (localStorage.getItem('bitledger_offline_pending') === 'true') {
+                    console.log("正在保护本地离线数据，拦截云端下发");
+                    return; 
+                }
+
                 document.getElementById('loading-overlay').classList.add('hidden');
-                
                 isRemoteDataLoaded = true;
 
                 if (docSnap.exists()) {
@@ -1335,31 +1352,43 @@
         }
 
         async function saveData() {
-            if (!db) return;
-            
-            if (!isRemoteDataLoaded) {
+            if (!isRemoteDataLoaded && navigator.onLine) {
                 showToast("正在同步数据，请稍后再试...");
                 return;
             }
 
-            const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
             const cleanState = JSON.parse(JSON.stringify(state));
-            try { await setDoc(docRef, { state: cleanState, updatedAt: new Date() }); localStorage.setItem(CACHE_KEY, JSON.stringify(state)); renderHome(); } 
-            catch(e) { console.error("Save failed", e); showToast("保存失败"); }
+            
+            // 1. 【乐观更新】无论有无网络，优先写入本地缓存并强制刷新UI（实现离线秒记）
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cleanState));
+            renderHome();
+            
+            // 2. 【智能推送】根据网络状态决定是否静默推送到云端
+            if (!navigator.onLine) {
+                // 没网，给本地打上离线标记
+                localStorage.setItem('bitledger_offline_pending', 'true');
+                showToast("✅ 已离线保存");
+            } else {
+                if (db) {
+                    const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
+                    // 异步推送，如果失败说明网络不稳定，依然打上离线标记
+                    setDoc(docRef, { state: cleanState, updatedAt: new Date() }).catch(e => {
+                        console.error("云端同步失败，转为离线队列", e);
+                        localStorage.setItem('bitledger_offline_pending', 'true');
+                    });
+                }
+            }
         }
         
-        // --- 修复2: 图标选择器优化 ---
         function renderIconSelector() {
             const container = document.getElementById('icon-selector-grid');
             const currentVal = document.getElementById('new-acc-icon').value || 'alipay';
             
-            // 1. 仅当容器为空时，构建 DOM 结构 (初始化)
             if (container.children.length !== iconOptions.length) {
                 container.innerHTML = '';
                 iconOptions.forEach(opt => {
                     const el = document.createElement('div');
                     el.id = `icon-opt-${opt.id}`;
-                    // 初始化时使用白色图标
                     const iconHtml = getIconHtml(opt.id, opt.id, 'white', 'symbol');
                     
                     el.innerHTML = `
@@ -1373,7 +1402,6 @@
                 });
             }
 
-            // 2. 更新状态 (只修改 Class 和 Style，不动 innerHTML)
             iconOptions.forEach(opt => {
                 const el = document.getElementById(`icon-opt-${opt.id}`);
                 const isSelected = currentVal === opt.id;
@@ -1385,24 +1413,15 @@
 
                 if (isSelected) {
                     el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-primary bg-crypto-primary/10 ring-1 ring-crypto-primary/50";
-                    
                     iconBg.style.backgroundColor = 'rgba(0,240,255,0.1)';
                     iconLabel.className = "icon-label text-[10px] text-crypto-primary font-bold";
-                    
                     iconContent.style.transform = 'scale(0.9)'; 
-                    
-                    // FontAwesome 变色
                     if(faIcon) { faIcon.classList.remove('text-white'); faIcon.classList.add('text-crypto-primary'); }
-
                 } else {
                     el.className = "flex flex-col items-center justify-center p-2 rounded-xl border cursor-pointer transition-all active:scale-95 h-20 border-crypto-border bg-crypto-card hover:bg-crypto-hover";
-                    
                     iconBg.style.backgroundColor = 'rgba(255,255,255,0.05)';
                     iconLabel.className = "icon-label text-[10px] text-crypto-subtext";
-                    
                     iconContent.style.transform = 'scale(0.75)';
-
-                    // FontAwesome 恢复白色
                     if(faIcon) { faIcon.classList.remove('text-crypto-primary'); faIcon.classList.add('text-white'); }
                 }
             });
@@ -1556,11 +1575,8 @@
 
         let editNoteTxId = null;
 
-        // 打开备注修改框
         window.openEditNoteModal = (txId) => {
             editNoteTxId = txId;
-            
-            // 核心要求：打开时清空输入框，无预设文字
             const inputEl = document.getElementById('edit-note-input');
             inputEl.value = "";
             
@@ -1568,13 +1584,11 @@
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             
-            // 延迟一点点时间自动聚焦输入框，方便直接打字
             setTimeout(() => {
                 inputEl.focus();
             }, 100);
         };
 
-        // 关闭备注修改框
         window.closeEditNoteModal = () => {
             const modal = document.getElementById('edit-note-modal');
             modal.classList.add('hidden');
@@ -1582,35 +1596,19 @@
             editNoteTxId = null;
         };
 
-        // 保存新的备注
         window.saveEditNote = () => {
             if (!editNoteTxId) return;
-            
-            if (!isRemoteDataLoaded) {
-                showToast("正在同步数据，请稍后...");
-                return;
-            }
-
             const tx = state.transactions.find(t => t.id === editNoteTxId);
             if (!tx) return;
 
-            // 获取输入框的内容
             const newNote = document.getElementById('edit-note-input').value.trim();
-
-            // 更新状态 (如果用户直接点保存，相当于清空备注)
             tx.note = newNote || ""; 
             
-            // 保存到云端
             saveData();
             
-            // 立即更新底层“交易详情”弹窗中的文字
             const noteSpan = document.getElementById('tx-modal-note');
             if (noteSpan) noteSpan.innerText = tx.note || "无";
-            
-            // 重新渲染首页列表
             renderHome();
-            
-            // 关闭自定义弹窗并提示
             window.closeEditNoteModal();
             showToast("备注已更新");
         };
@@ -1624,12 +1622,6 @@
 
         window.deleteCurrentTransaction = () => {
             if(!selectedTxId) return;
-            
-            if (!isRemoteDataLoaded) {
-                showToast("正在同步数据，请稍后...");
-                return;
-            }
-
             const btn = document.getElementById('btn-delete-tx');
             if(!deleteConfirmState) {
                 deleteConfirmState = true;
@@ -1677,6 +1669,7 @@
             document.getElementById('create-account-modal').classList.remove('hidden'); 
             document.getElementById('create-account-modal').classList.add('flex'); 
         };
+        
         window.closeCreateAccount = () => {
             window.closeUniversalKeypad();
             document.getElementById('create-account-modal').classList.add('hidden'); 
@@ -1684,11 +1677,6 @@
         };
         
         window.confirmCreateAccount = () => {
-            if (!isRemoteDataLoaded) {
-                showToast("正在同步数据，请稍后...");
-                return;
-            }
-
             const name = document.getElementById('new-acc-name').value.trim();
             const icon = document.getElementById('new-acc-icon').value; 
             const currency = document.getElementById('new-acc-currency').value;
@@ -1711,39 +1699,26 @@
             if(display.innerText === '...') display.innerText = '...';
             
             try {
-                // 1. 优先尝试从 Firebase 读取后端抓取的“真实 C2C 汇率”
                 if (db) {
                     const docRef = doc(db, 'bitledger_storage', 'global_config');
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists() && docSnap.data().rates) {
                         const rates = docSnap.data().rates;
-                        
-                        // 更新全局汇率变量
                         if (rates.USDT) exchangeRates.USDT = rates.USDT;
                         if (rates.AED) exchangeRates.AED = rates.AED; 
-                        
-                        // 更新 UI 显示
                         display.innerText = exchangeRates.USDT.toFixed(2);
-                        
-                        // 缓存到本地，下次秒开
                         localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(exchangeRates));
-                        console.log(`✅ 汇率已同步 (Binance C2C): USDT=${exchangeRates.USDT}, AED=${exchangeRates.AED}`);
                         renderHome();
-                        return; // 成功获取后直接返回，不走下面的 CoinGecko
+                        return; 
                     }
                 }
-
-                // 2. (兜底) 如果 Firebase 没读到，退回到 CoinGecko
-                console.log("⚠️ 云端汇率未就绪，使用 CoinGecko 兜底");
                 const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=cny');
                 if(!res.ok) throw new Error('API Error');
                 const data = await res.json();
                 if(data.tether && data.tether.cny) {
                     exchangeRates.USDT = data.tether.cny;
-                    // 如果没抓到 AED，就用默认挂钩汇率
                     if (!exchangeRates.AED) exchangeRates.AED = exchangeRates.USDT / 3.6725;
-                    
                     display.innerText = exchangeRates.USDT.toFixed(2);
                     localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(exchangeRates));
                 }
@@ -1755,13 +1730,11 @@
         window.fetchExchangeRate = fetchExchangeRate;
 
         function renderHome() {
-            // Assets Tab Calculations
             let totalCNY = 0;
             state.accounts.forEach(acc => { totalCNY += convertCurrency(acc.balance, acc.currency, 'CNY'); });
             document.getElementById('total-asset-display').innerText = state.privacyMode ? '****' : `≈ ${totalCNY.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             const totalActualYesterdayCNY = getYesterdayInterest();
-
             let allTimeTotal = 0;
             const interestTxs = state.transactions.filter(t => t.category === 'interest');
             interestTxs.forEach(t => { allTimeTotal += convertCurrency(t.amount, t.currency, 'CNY'); });
@@ -1774,8 +1747,6 @@
             document.getElementById('total-earnings').innerText = state.privacyMode ? '****' : `+${allTimeTotal.toFixed(2)}`;
             
             populateDateSelector();
-            
-            // 渲染筛选器
             window.renderBillFilters();
 
             if (currentTab === 'assets') {
@@ -1806,7 +1777,6 @@
                 const list = document.getElementById('transaction-list');
                 list.innerHTML = '';
 
-                // 【修改点】增加账户筛选逻辑
                 const filteredTxs = state.transactions.filter(t => 
                     t.date.getFullYear() === currentYear && 
                     t.date.getMonth() === currentMonth &&
@@ -1816,9 +1786,7 @@
                 let monthInc = 0;
                 let monthExp = 0;
                 filteredTxs.forEach(t => {
-                    // 【修改】如果交易标记为“忽略统计”，则跳过计算
                     if (t.ignoreStats) return;
-
                     const valCNY = convertCurrency(t.amount, t.currency, 'CNY');
                     if (t.type === 'income') monthInc += valCNY;
                     else if (t.type === 'expense') monthExp += valCNY;
@@ -1868,257 +1836,13 @@
                 });
             }
         };
-       
-        function getIconHtml(accId, iconName, color, type = 'symbol') {
-            const imgClass = "w-full h-full object-contain drop-shadow-sm";
-            if (iconName === 'fa-wallet') {
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idOeoXl-EC/theme/dark/idL9bG96QG.svg?c=1bxid64Mup7aczewSAYMX&t=1753792536434" class="${imgClass}" alt="Cash Watermark">`;
-                return `<img src="https://cdn.brandfetch.io/idOeoXl-EC/theme/dark/symbol.svg?c=1bxid64Mup7aczewSAYMX&t=1668081969726" class="${imgClass}" alt="Cash Symbol">`;
-            }
-            if (iconName === 'fa-building-columns') {
-                const bankUrl = "https://cdn.jsdelivr.net/gh/mingf848-hue/iconelf@main/svg.svg";
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idq9Bao8gh/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1668076550672" class="${imgClass}" alt="Bank Watermark">`;
-                return `<img src="${bankUrl}" class="${imgClass}" alt="Bank Symbol">`;
-            }
-            if (iconName === 'binance') {
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/id-pjrLx_q/theme/dark/idKzmFfrAl.svg?c=1bxid64Mup7aczewSAYMX&t=1675846244709" class="${imgClass}" alt="Binance">`;
-                return `<img src="https://cdn.brandfetch.io/id-pjrLx_q/theme/dark/idtm0kR5Wk.svg?c=1bxid64Mup7aczewSAYMX&t=1675846247575" class="${imgClass}" alt="Binance">`;
-            }
-            if (iconName === 'okx') {
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idtn7Q7xkM/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1756525387900" class="${imgClass}" alt="OKX">`;
-                return `<img src="https://cdn.brandfetch.io/idtn7Q7xkM/theme/dark/id2OTgDNg9.svg?c=1bxid64Mup7aczewSAYMX&t=1762340705408" class="${imgClass}" alt="OKX">`;
-            }
-            if (iconName === 'bitget') return `<img src="https://cdn.brandfetch.io/ide1GqodMV/theme/dark/id7REbdlo0.svg?c=1bxid64Mup7aczewSAYMX&t=1762340715926" class="${imgClass}" alt="Bitget">`;
-            if (iconName === 'alipay') {
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idTglJWN-B/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1712303046444" class="${imgClass}" alt="Alipay">`;
-                return `<img src="https://upload.wikimedia.org/wikipedia/en/d/dd/Alipay_logo_%282024%29.svg" class="${imgClass}" alt="Alipay">`;
-            }
-            if (iconName === 'wechat') {
-                const wechatUrl = "https://cdn.jsdelivr.net/gh/mingf848-hue/iconelf@main/wechat-logo-1.svg";
-                if (type === 'watermark') return `<img src="https://cdn.brandfetch.io/idhIQQJ7ix/idrJC_qI5L.svg?c=1bxid64Mup7aczewSAYMX&t=1646276843906" class="${imgClass}" alt="WeChat">`;
-                return `<img src="${wechatUrl}" class="${imgClass}" alt="WeChat">`;
-            }
-            if (iconName.startsWith('fa-')) {
-                if (type === 'watermark') return `<i class="fa-solid ${iconName} text-white" style="font-size: 10rem; opacity: 0.15;"></i>`;
-                return `<i class="fa-solid ${iconName} text-white text-xs drop-shadow-md"></i>`;
-            }
-            return `<i class="fa-solid fa-wallet text-white text-xs"></i>`;
-        }
 
-        // 1. 打开编辑弹窗时，重置复选框
-        window.openAccountModal = (id, element = null) => {
-            editingId = id; 
-            const acc = state.accounts.find(a => a.id === id);
-            document.getElementById('edit-acc-name').value = acc.name;
-            document.getElementById('edit-acc-currency').value = acc.currency;
-            
-            const balInput = document.getElementById('edit-acc-balance');
-            balInput.setAttribute('step', 'any'); 
-            balInput.value = acc.balance;
-            
-            document.getElementById('edit-acc-apy').value = acc.apy || 0; 
-            document.getElementById('edit-acc-limit').value = acc.tierLimit || 0; 
-            document.getElementById('edit-acc-excess-apy').value = acc.excessApy || 0; 
-
-            // 【新增】默认不勾选“不计入统计”
-            const cb = document.getElementById('correction-ignore-stats');
-            if(cb) cb.checked = false;
-
-            const delBtn = document.getElementById('btn-delete-acc');
-            delBtn.innerHTML = '<i class="fa-solid fa-trash-can mr-1"></i>删除账户';
-            delBtn.className = "w-1/3 py-3.5 rounded-xl border border-red-500/20 text-red-500 font-bold text-sm hover:bg-red-500/10 active:scale-95 transition-all";
-            deleteConfirmState = false;
-
-            const modal = document.getElementById('account-modal');
-            const panel = modal.querySelector('.modular-panel');
-            panel.classList.remove('animate-scale-up', 'animate-slide-up');
-            if (element) {
-                const rect = element.getBoundingClientRect();
-                const startX = rect.left + rect.width / 2;
-                const startY = rect.top + rect.height / 2;
-                const centerX = window.innerWidth / 2;
-                const centerY = window.innerHeight / 2;
-                const dx = startX - centerX;
-                const dy = startY - centerY;
-                panel.style.setProperty('--popup-x', `${dx}px`);
-                panel.style.setProperty('--popup-y', `${dy}px`);
-                panel.classList.remove('animate-spring-popup');
-                void panel.offsetWidth; 
-                panel.classList.add('animate-spring-popup');
-            } else { panel.classList.add('animate-scale-up'); }
-            modal.classList.remove('hidden'); 
-            modal.classList.add('flex');
-        };
-       
-        window.closeAccountModal = () => {
-            window.closeUniversalKeypad(); 
-            const modal = document.getElementById('account-modal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            editingId = null; 
-        };
-       
-        // 2. 保存设置时，读取复选框并写入 ignoreStats 标记
-        window.saveAccountSettings = () => {
-            if (!editingId) return;
-            
-            if (!isRemoteDataLoaded) { showToast("正在同步数据，请稍后..."); return; }
-
-            const acc = state.accounts.find(a => a.id === editingId);
-            if (!acc) { window.closeAccountModal(); return; }
-            const nameInput = document.getElementById('edit-acc-name').value.trim();
-            const rawBalanceStr = document.getElementById('edit-acc-balance').value;
-            const balInput = parseFloat(rawBalanceStr);
-            const limitInput = parseFloat(document.getElementById('edit-acc-limit').value) || 0;
-            const apyInput = parseFloat(document.getElementById('edit-acc-apy').value) || 0;
-            const excessApyInput = parseFloat(document.getElementById('edit-acc-excess-apy').value) || 0;
-
-            if (!nameInput) return showToast("账户名称不能为空");
-            const oldBalance = acc.balance;
-            const newBalance = isNaN(balInput) ? 0 : balInput;
-            
-            if (rawBalanceStr !== oldBalance.toString()) {
-                const diff = newBalance - oldBalance;
-                const absAmount = Math.abs(diff);
-                if (absAmount > 0) {
-                    const isIncome = diff > 0;
-                    
-                    // 【新增】读取是否忽略统计
-                    const ignoreStats = document.getElementById('correction-ignore-stats').checked;
-
-                    const correctionTx = {
-                        id: Date.now(),
-                        type: isIncome ? 'income' : 'expense',
-                        amount: absAmount,
-                        currency: acc.currency,
-                        accountId: acc.id,
-                        targetAccountId: null,
-                        category: 'correction',
-                        date: new Date(),
-                        note: '余额人工修正' + (ignoreStats ? ' (不计入统计)' : ''),
-                        ignoreStats: ignoreStats // 保存此标记
-                    };
-                    state.transactions.push(correctionTx);
-                }
-            }
-            acc.name = nameInput;
-            acc.balance = newBalance;
-            acc.tierLimit = limitInput;
-            acc.apy = apyInput;
-            acc.excessApy = excessApyInput;
-            saveData();
-            window.closeAccountModal();
-            showToast("账户已修正");
-        };
-
-        window.deleteAccount = () => {
-            if (!editingId) return;
-            
-            if (!isRemoteDataLoaded) {
-                showToast("正在同步数据，请稍后...");
-                return;
-            }
-
-            const btn = document.getElementById('btn-delete-acc');
-            if (!deleteConfirmState) {
-                deleteConfirmState = true;
-                btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 再次点击确认';
-                btn.className = "w-1/3 py-3.5 rounded-xl bg-red-600 text-white font-bold text-sm shadow-lg shadow-red-900/50 active:scale-95 transition-all";
-                return;
-            }
-            state.accounts = state.accounts.filter(a => a.id !== editingId);
-            state.transactions = state.transactions.filter(t => t.accountId !== editingId && t.targetAccountId !== editingId);
-            saveData();
-            window.closeAccountModal();
-            showToast("账户已删除");
-        };
-
-        window.openAddModal = (defaultType = 'expense') => {
-            const modal = document.getElementById('add-modal');
-            const panel = modal.querySelector('.modular-panel');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            panel.classList.remove('animate-slide-up', 'animate-slide-down');
-            panel.classList.remove('transition-all', 'duration-300', 'ease-out');
-            panel.classList.add('translate-y-full');
-            void panel.offsetWidth; 
-            panel.classList.add('transition-all', 'duration-300', 'ease-out');
-            panel.classList.remove('translate-y-full');
-            
-            const scrollContainer = document.querySelector('#page-home > div.flex-1');
-            if (scrollContainer) { scrollContainer.classList.remove('overflow-y-auto'); scrollContainer.classList.add('overflow-hidden'); }
-            const fromSel = document.getElementById('transfer-from');
-            const toSel = document.getElementById('transfer-to');
-            fromSel.innerHTML = ''; toSel.innerHTML = '';
-            state.accounts.forEach(a => {
-                const opt = `<option value="${a.id}" class="bg-crypto-card text-white">${a.name} (${a.currency})</option>`;
-                fromSel.innerHTML += opt; toSel.innerHTML += opt;
-            });
-            temp.amount = '0'; temp.accountId = state.accounts[0] ? state.accounts[0].id : null; temp.date = new Date();
-            
-            document.getElementById('input-amount').innerText = '0'; 
-            document.getElementById('input-note').value = '';
-            updateAddModalDateDisplay(); 
-
-            window.setTransactionType(defaultType);
-        };
-
-        function updateAddModalDateDisplay() {
-            const d = temp.date;
-            const now = new Date();
-            let label = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-            if (d.toDateString() === now.toDateString()) label = "Today";
-            document.getElementById('input-date-display').innerText = label;
-        }
-
-        window.closeAddModal = () => { 
-            const modal = document.getElementById('add-modal');
-            const panel = modal.querySelector('.modular-panel');
-            panel.classList.add('transition-all', 'duration-300', 'ease-in');
-            panel.classList.add('translate-y-full');
-            setTimeout(() => {
-                modal.classList.add('hidden'); 
-                modal.classList.remove('flex'); 
-                const scrollContainer = document.querySelector('#page-home > div.flex-1');
-                if (scrollContainer) { scrollContainer.classList.remove('overflow-hidden'); scrollContainer.classList.add('overflow-y-auto'); }
-            }, 300);
-        };
-
-        let currentFilterAccountId = 'all'; // 筛选状态
-
-        // 1. 渲染账单筛选栏
-        window.renderBillFilters = () => {
-            const container = document.getElementById('bills-filter-container');
-            if (!container) return;
-            container.innerHTML = '';
-
-            // 全部按钮
-            const allBtn = document.createElement('button');
-            const isAllActive = currentFilterAccountId === 'all';
-            allBtn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${isAllActive ? 'bg-white text-black border-white' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
-            allBtn.innerText = '全部';
-            allBtn.onclick = () => { currentFilterAccountId = 'all'; window.renderBillFilters(); renderHome(); };
-            container.appendChild(allBtn);
-
-            // 各账户按钮
-            state.accounts.forEach(acc => {
-                const isActive = currentFilterAccountId === acc.id;
-                const btn = document.createElement('button');
-                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
-                btn.innerHTML = `<span>${acc.name}</span>`;
-                btn.onclick = () => { currentFilterAccountId = acc.id; window.renderBillFilters(); renderHome(); };
-                container.appendChild(btn);
-            });
-        };
-
-        // 2. 修复键盘：支持加减乘除 (+ - * /)
         window.keypadPress = (k) => {
             let cur = temp.amount.toString();
             if (k === 'backspace') {
                 temp.amount = cur.length > 1 ? cur.slice(0, -1) : '0';
             }
             else if (['+','-','*','/'].includes(k)) {
-                // 防止连续输入运算符
                 const lastChar = cur.slice(-1);
                 if (['+','-','*','/'].includes(lastChar)) {
                     temp.amount = cur.slice(0, -1) + k;
@@ -2245,8 +1969,6 @@
             }
         }
         
-        // --- NEW: Custom Date Range Picker (Swipeable Wheel) Logic ---
-
         window.openDateRangePicker = () => {
             tempPickerYear = currentYear;
             tempPickerMonth = currentMonth;
@@ -2340,7 +2062,6 @@
             }, 50);
         }
         
-        // --- Updated Physics Scroll Logic ---
         window.startScroll = (e, type) => {
             const container = document.getElementById(`${type}-list`);
             if (!container) return;
@@ -2470,13 +2191,10 @@
             }
         }
 
-        // 3. 提交交易：支持算式计算 + 转账手动金额
         window.submitTransaction = () => {
             let amount = 0;
             try {
-                // 计算算式 (移除末尾可能的运算符)
                 let expr = temp.amount.toString().replace(/[+\-*\/]$/, '');
-                // 安全检查：只允许数字和运算符
                 if (/^[\d.+\-*\/]+$/.test(expr)) {
                     amount = Function('"use strict";return (' + expr + ')')();
                     amount = parseFloat(amount.toFixed(2));
@@ -2490,8 +2208,6 @@
             const fromAcc = state.accounts.find(a => a.id === temp.accountId);
             if (!fromAcc) return showToast('请先创建账户');
             
-            if (!isRemoteDataLoaded) { showToast("正在同步数据，请稍后..."); return; }
-
             const note = document.getElementById('input-note').value;
             const date = temp.date || new Date(); 
             
@@ -2499,14 +2215,10 @@
                 const toAcc = state.accounts.find(a => a.id === temp.targetAccountId);
                 if (fromAcc.id === toAcc.id) return showToast('账户相同');
                 
-                // 扣款
                 fromAcc.balance = fixPrecision(fromAcc.balance - amount);
-                
-                // 目标金额：优先用手动输入的，否则自动算
                 let finalAmount = 0;
                 const manualTargetStr = document.getElementById('transfer-final-amount').value;
                 const manualTarget = parseFloat(manualTargetStr);
-                
                 let autoNote = note || `划转 ${amount} ${fromAcc.currency} 到 ${toAcc.name}`;
 
                 if (!isNaN(manualTarget) && manualTarget > 0) {
@@ -2517,7 +2229,6 @@
                 }
                 
                 toAcc.balance = fixPrecision(toAcc.balance + finalAmount);
-                
                 state.transactions.push({ id: Date.now(), type: 'transfer', amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, targetAccountId: toAcc.id, date: date, note: autoNote });
             } else {
                 if (temp.type === 'expense') fromAcc.balance = fixPrecision(fromAcc.balance - amount);
@@ -2527,7 +2238,6 @@
             saveData(); window.closeAddModal(); showToast('操作成功');
         };
 
-        // 4. 更新 UI 显示：控制转账输入框显隐
         window.setTransactionType = (type) => {
             temp.type = type;
             const tExp = document.getElementById('tab-expense'); const tInc = document.getElementById('tab-income'); const tTra = document.getElementById('tab-transfer');
@@ -2538,7 +2248,7 @@
             document.getElementById('selectors-ui').classList.remove('hidden'); 
             document.getElementById('transfer-ui').classList.add('hidden'); 
             document.getElementById('transfer-rate-hint').classList.add('hidden');
-            document.getElementById('transfer-target-input-container').classList.add('hidden'); // 默认隐藏
+            document.getElementById('transfer-target-input-container').classList.add('hidden'); 
 
             if (type === 'expense') { tExp.className = activeClass + " text-crypto-down"; btn.className = "keypad-btn bg-crypto-down h-16 text-white font-bold text-xl"; btn.innerText = "确认支出"; }
             else if (type === 'income') { tInc.className = activeClass + " text-crypto-up"; btn.className = "keypad-btn bg-crypto-up h-16 text-white font-bold text-xl"; btn.innerText = "确认收入"; }
@@ -2548,13 +2258,12 @@
                 btn.innerText = "确认划转"; 
                 document.getElementById('selectors-ui').classList.add('hidden'); 
                 document.getElementById('transfer-ui').classList.remove('hidden'); 
-                document.getElementById('transfer-target-input-container').classList.remove('hidden'); // 显示
+                document.getElementById('transfer-target-input-container').classList.remove('hidden'); 
                 window.updateTransferUI(); 
             }
             if(type !== 'transfer') renderModalAccounts(); renderModalCategories();
         };
 
-        // 5. 更新转账 UI：处理币种标签
         window.updateTransferUI = () => {
             const fromId = document.getElementById('transfer-from').value; const toId = document.getElementById('transfer-to').value;
             temp.accountId = fromId; temp.targetAccountId = toId;
@@ -2563,7 +2272,6 @@
             if(fromAcc) document.getElementById('input-currency-label').innerText = fromAcc.currency;
             if(toAcc) document.getElementById('transfer-target-currency-label').innerText = toAcc.currency;
             
-            // 切换账户时重置手动输入
             document.getElementById('transfer-final-amount').value = '';
 
             const hint = document.getElementById('transfer-rate-hint');
@@ -2580,16 +2288,12 @@
             const t = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
             t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 2000);
+            setTimeout(() => t.classList.add('hidden'), 3000);
         }
         
         async function callGemini(prompt, imageBase64 = null) {
-            // 默认使用相对路径 (适用于真实的 Vercel 线上环境)
             let url = `/api/gemini`; 
-            
-            // 兼容修复：如果你在当前的“预览(Preview)”沙盒环境测试
             if (window.location.origin.includes('blob:') || window.location.origin.includes('scf.usercontent.goog')) {
-                // 替换为你的 Vercel 绝对域名 (根据你之前截图的快捷指令域名)
                 url = `https://wallet-drab-nine.vercel.app/api/gemini`; 
             }
 
@@ -2647,9 +2351,17 @@
         }
 
         window.togglePrivacy = () => { state.privacyMode = !state.privacyMode; renderHome(); };
+        
         window.handleReceiptUpload = async (input) => {
             const file = input.files[0];
             if (!file) return;
+            
+            if (!navigator.onLine) {
+                showToast("⚠️ 离线状态无法使用 AI 识图");
+                input.value = '';
+                return;
+            }
+            
             showLoading("AI 正在识别账单...");
             try {
                 const reader = new FileReader();
@@ -2659,8 +2371,6 @@
                     const prompt = `你是一个专业的财务会计助手。请分析这张账单图片，提取关键信息并严格按照以下 JSON 格式返回 (不要使用 Markdown 代码块，只返回纯文本 JSON): {"amount": 0.00, "currency": "CNY", "merchant": "商家名称", "category": "food"}`;
                     try {
                         const aiResponse = await callGemini(prompt, base64Data);
-                        
-                        // 强化 JSON 提取：防 AI 废话崩盘
                         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
                         if (!jsonMatch) throw new Error("无法提取 JSON");
                         const data = JSON.parse(jsonMatch[0]);
@@ -2679,11 +2389,13 @@
                 };
             } catch (e) { console.error("上传失败", e); hideLoading(); showToast("图片处理出错"); } finally { input.value = ''; }
         };
+        
         window.openAiReport = () => { document.getElementById('ai-report-modal').classList.remove('hidden'); document.getElementById('ai-report-modal').classList.add('flex'); };
         window.closeAiReport = () => { document.getElementById('ai-report-modal').classList.add('hidden'); document.getElementById('ai-report-modal').classList.remove('flex'); };
         window.myFinancialChart = null; 
 
         window.analyzePortfolio = async () => {
+            if (!navigator.onLine) { showToast("⚠️ 离线状态下无法生成 AI 研报"); return; }
             if (state.transactions.length === 0) { showToast("暂无账单数据，无法分析"); return; }
             showLoading("AI 正在识别币种并分析...");
             try {
@@ -2697,7 +2409,6 @@
                 const prompt = `你是一个擅长讲故事的数据分析师。请分析以下用户的流水，生成一份**JSON格式**的趣味报告。 **用户总资产折合:** 约 ${totalBalance} CNY **近期流水详情:** ${txList} **请严格按照以下 JSON 结构返回 (不要 Markdown 标记):** { "month_keyword": "颜值正义", "keyword_desc": "在变美这件事上，你从不吝啬。", "total_expense_display": "1,234.56 CNY", "global_rank": 85, "max_single_day": { "date": "2023-10-24", "amount_display": "135 AED", "desc": "这一天你似乎出手阔绰，把钱花在了..." }, "category_highlight": [ {"name": "餐饮", "percent": 40, "tag": "干饭王"}, {"name": "购物", "percent": 30, "tag": "剁手党"} ], "late_night_count": 3, "soul_message": "生活不只有眼前的苟且..." }`;
                 const rawText = await callGemini(prompt);
                 
-                // 增强 JSON 提取逻辑：精准抠出大括号内部内容，无视 AI 前后的废话
                 const jsonMatch = rawText.match(/\{[\s\S]*\}/);
                 if (!jsonMatch) throw new Error("无法从 AI 回复中提取 JSON");
                 const data = JSON.parse(jsonMatch[0]);
@@ -2712,6 +2423,28 @@
                 showToast("报告生成完毕");
             } catch (e) { console.error("Report Error", e); document.getElementById('ai-report-content').innerHTML = `<div class="flex flex-col items-center justify-center h-full text-red-400"><i class="fa-solid fa-bug text-2xl mb-2"></i><p class="text-xs">AI 脑洞太大了，生成出错<br>请重试</p></div>`; } finally { hideLoading(); }
         };
+
+        // 【新增】监听网络恢复，自动推送离线账单
+        window.addEventListener('online', () => {
+            if (localStorage.getItem('bitledger_offline_pending') === 'true') {
+                showToast("网络恢复，正在同步离线账单...");
+                const localData = localStorage.getItem(CACHE_KEY);
+                if (localData && db) {
+                    const docRef = doc(db, 'bitledger_storage', GLOBAL_WALLET_DOC_ID);
+                    setDoc(docRef, { state: JSON.parse(localData), updatedAt: new Date() }).then(() => {
+                        localStorage.removeItem('bitledger_offline_pending');
+                        showToast("✅ 离线数据同步完成");
+                    });
+                }
+            } else {
+                showToast("网络已恢复");
+            }
+        });
+        
+        window.addEventListener('offline', () => {
+            showToast("当前网络已断开，已切换至离线模式");
+        });
+
         init();
     </script>
     <script>
