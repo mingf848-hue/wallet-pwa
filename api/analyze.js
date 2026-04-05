@@ -1,7 +1,7 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// ★★★ 替换点 1：使用 Admin SDK 初始化 (连接 Vercel 环境变量) ★★★
+// ★★★ 使用 Admin SDK 初始化 (连接 Vercel 环境变量) ★★★
 if (getApps().length === 0) {
     const serviceAccount = JSON.parse(process.env.BITLEDGER_KEY);
     initializeApp({
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
         // ★★★ 核心保留：锁定时间逻辑 ★★★
         const lockedTime = transactionTime ? new Date(transactionTime) : new Date(); 
 
-        // 2. 定义 System Prompt (完全保留你的 Prompt)
+        // 2. 定义 System Prompt
         const systemPrompt = `
           你是一个经验丰富、极其严谨的私人财务助理。你的任务是精准分析支付截图，提取交易数据。
 
@@ -58,14 +58,15 @@ export default async function handler(req, res) {
           不要使用 Markdown，直接返回纯 JSON 字符串。
         `;
 
-        // 3. 调用 AI 接口 (★ 移除代理，直连官方 API 并读取环境变量 ★)
+        // 3. 调用 AI 接口 (★ 已切换为 Gemini 3.1 Flash ★)
         const apiKey = process.env.GEMINI_API_KEY; 
         if (!apiKey) {
             console.error("Missing GEMINI_API_KEY environment variable");
             return res.status(500).json({ error: "服务器未配置 GEMINI_API_KEY" });
         }
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 修改点：使用 gemini-3.1-flash 模型
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: [{
