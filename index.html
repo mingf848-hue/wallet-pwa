@@ -1852,7 +1852,7 @@
             // 全部按钮
             const allBtn = document.createElement('button');
             const isAllActive = currentFilterAccountId === 'all';
-            allBtn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${isAllActive ? 'bg-white text-black border-white' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
+            allBtn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${isAllActive ? 'bg-white text-black border-white' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
             allBtn.innerText = '全部';
             allBtn.onclick = () => { currentFilterAccountId = 'all'; window.renderBillFilters(); renderHome(); };
             container.appendChild(allBtn);
@@ -1861,7 +1861,7 @@
             state.accounts.forEach(acc => {
                 const isActive = currentFilterAccountId === acc.id;
                 const btn = document.createElement('button');
-                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
+                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
                 btn.innerHTML = `<span>${acc.name}</span>`;
                 btn.onclick = () => { currentFilterAccountId = acc.id; window.renderBillFilters(); renderHome(); };
                 container.appendChild(btn);
