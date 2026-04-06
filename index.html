@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Pro V12.6 (iOS Fix)</title>
+    <title>BitLedger Pro V12.6.1 (Transfer Fix)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1453,10 +1453,40 @@
             else if (tx.type === 'transfer') { catName = "账户划转"; catIconClass = "fa-arrow-right-arrow-left"; }
             else if (tx.category === 'correction') { catName = "余额人工修正"; catIconClass = "fa-wrench"; }
 
+            let signChar = tx.type === 'expense' ? '-' : '+';
+            let colorClass = tx.type === 'expense' ? 'text-crypto-down' : (tx.type === 'income' ? 'text-crypto-up' : 'text-white');
+            let rawAmountStr = tx.amount.toFixed(2);
+            let rawCurrency = tx.currency;
+
+            // 针对划转处理详情弹窗展示
+            if (tx.type === 'transfer') {
+                signChar = '-';
+                colorClass = 'text-crypto-primary';
+            }
+
+            if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
+                 rawAmountStr = parseFloat(tx.amount.toFixed(8)).toString();
+            }
+
             const merchantName = tx.merchant; 
             let merchantHtml = '';
             
-            if (merchantName) {
+            if (tx.type === 'transfer') {
+                const toAcc = state.accounts.find(a => a.id === tx.targetAccountId);
+                const targetAmountStr = tx.targetAmount ? tx.targetAmount.toFixed(2) : convertCurrency(tx.amount, tx.currency, tx.targetCurrency || 'CNY').toFixed(2);
+                const targetCurrStr = tx.targetCurrency || (toAcc ? toAcc.currency : '');
+
+                merchantHtml = `
+                    <div class="flex justify-between items-center p-3 border-b border-white/5">
+                        <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-crypto-up"><i class="fa-solid fa-arrow-right-to-bracket text-xs"></i></div><span class="text-sm text-gray-300">到账账户</span></div>
+                        <span class="text-sm font-bold text-white">${toAcc ? toAcc.name : 'Unknown'}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 border-b border-white/5">
+                        <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-crypto-up"><i class="fa-solid fa-coins text-xs"></i></div><span class="text-sm text-gray-300">实际到账</span></div>
+                        <span class="text-sm font-bold text-crypto-up">+${targetAmountStr} ${targetCurrStr}</span>
+                    </div>
+                `;
+            } else if (merchantName) {
                 let merchantIcon = "fa-store"; 
                 if (merchantName.includes("拼多多")) merchantIcon = "fa-bag-shopping"; 
                 else if (merchantName.includes("淘宝")) merchantIcon = "fa-shirt";
@@ -1469,13 +1499,6 @@
                         <span class="text-sm font-bold text-white">${merchantName}</span>
                     </div>
                 `;
-            }
-
-            const signChar = tx.type === 'expense' ? '-' : '+';
-            const colorClass = tx.type === 'expense' ? 'text-crypto-down' : (tx.type === 'income' ? 'text-crypto-up' : 'text-white');
-            let rawAmountStr = tx.amount.toFixed(2);
-            if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
-                 rawAmountStr = parseFloat(tx.amount.toFixed(8)).toString();
             }
 
             const panel = document.getElementById('tx-modal-panel');
@@ -1494,7 +1517,7 @@
                     <div class="relative inline-flex items-baseline justify-center">
                         <span id="tx-modal-sign" class="absolute right-full mr-1 text-4xl font-mono font-bold tracking-tight text-shadow ${colorClass}">${signChar}</span>
                         <span id="tx-modal-amount-val" class="text-4xl font-mono font-bold tracking-tight text-shadow z-10 ${colorClass}">${rawAmountStr}</span>
-                        <span id="tx-modal-currency" class="absolute left-full ml-2 bottom-1 text-sm font-bold text-crypto-subtext whitespace-nowrap">${tx.currency}</span>
+                        <span id="tx-modal-currency" class="absolute left-full ml-2 bottom-1 text-sm font-bold text-crypto-subtext whitespace-nowrap">${rawCurrency}</span>
                     </div>
                     <div id="tx-modal-date" class="text-xs text-crypto-subtext mt-2 font-mono opacity-60">${tx.date.toLocaleString('zh-CN', { hour12: false })}</div>
                 </div>
@@ -1505,7 +1528,7 @@
                         <span id="tx-modal-category" class="text-sm font-bold text-white">${catName}</span>
                     </div>
                     <div class="flex justify-between items-center p-3 border-b border-white/5">
-                        <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-400"><i class="fa-solid fa-wallet text-xs"></i></div><span class="text-sm text-gray-300">支付账户</span></div>
+                        <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-400"><i class="fa-solid fa-wallet text-xs"></i></div><span class="text-sm text-gray-300">流出账户</span></div>
                         <span id="tx-modal-account" class="text-sm font-bold text-white">${acc ? acc.name : '未知账户'}</span>
                     </div>
                     
@@ -1651,7 +1674,8 @@
                         const targetAcc = state.accounts.find(a => a.id === tx.targetAccountId);
                         acc.balance = fixPrecision(acc.balance + tx.amount);
                         if(targetAcc) {
-                            let revertAmount = convertCurrency(tx.amount, acc.currency, targetAcc.currency);
+                            // 撤销时，使用精确的记录到的到账金额
+                            let revertAmount = tx.targetAmount !== undefined ? tx.targetAmount : convertCurrency(tx.amount, acc.currency, targetAcc.currency);
                             targetAcc.balance = fixPrecision(targetAcc.balance - revertAmount);
                         }
                     }
@@ -1829,6 +1853,7 @@
 
                 const sorted = [...filteredTxs].sort((a, b) => b.date - a.date);
                 if(sorted.length === 0) list.innerHTML = `<div class="text-center py-8 text-crypto-subtext text-xs opacity-50">本月无记录</div>`;
+                
                 sorted.forEach(t => {
                     const acc = state.accounts.find(a => a.id === t.accountId);
                     let colorClass = t.type === 'expense' ? 'text-crypto-down' : (t.type === 'income' ? 'text-crypto-up' : 'text-crypto-primary');
@@ -1839,14 +1864,47 @@
 
                     let iconDisplay = acc ? `<div class="w-full h-full rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md p-2 shadow-inner">${getIconHtml(acc.id, acc.icon, 'white', 'symbol')}</div>` : `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-question text-gray-500"></i></div>`;
 
-                    if (t.category === 'interest') desc = `${acc ? acc.name : ''} 理财收益`; 
-                    else if (t.category === 'correction') desc = "余额人工修正";
-                    else if (t.type === 'transfer') { const toAcc = state.accounts.find(a => a.id === t.targetAccountId); desc = `划转至 ${toAcc ? toAcc.name : 'Unknown'}`; iconDisplay = `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-arrow-left text-crypto-primary text-xs"></i></div>`; }
-                    
                     let displayAmount = t.amount.toFixed(2);
-                    if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
-                         displayAmount = parseFloat(t.amount.toFixed(12)).toString();
+                    let displayCurrency = t.currency;
+                    let isTargetView = false;
+
+                    if (t.category === 'interest') {
+                        desc = `${acc ? acc.name : ''} 理财收益`; 
+                    } else if (t.category === 'correction') {
+                        desc = "余额人工修正";
+                    } else if (t.type === 'transfer') { 
+                        const toAcc = state.accounts.find(a => a.id === t.targetAccountId); 
+                        const fromAcc = state.accounts.find(a => a.id === t.accountId);
+                        isTargetView = (currentFilterAccountId === t.targetAccountId);
+
+                        if (isTargetView) {
+                            // 目标账户视角：显示资金流入
+                            desc = `来自 ${fromAcc ? fromAcc.name : 'Unknown'} 的划转`; 
+                            colorClass = 'text-crypto-up';
+                            sign = '+';
+                            displayAmount = (t.targetAmount || convertCurrency(t.amount, t.currency, toAcc ? toAcc.currency : t.currency)).toFixed(2);
+                            displayCurrency = t.targetCurrency || (toAcc ? toAcc.currency : t.currency);
+                        } else {
+                            // 默认或来源账户视角：显示资金流出
+                            desc = `划转至 ${toAcc ? toAcc.name : 'Unknown'}`; 
+                            colorClass = 'text-crypto-primary';
+                            sign = '-'; 
+                            displayAmount = t.amount.toFixed(2);
+                            displayCurrency = t.currency;
+                        }
+                        
+                        iconDisplay = `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-arrow-left text-crypto-primary text-xs"></i></div>`; 
                     }
+                    
+                    if (acc && !['alipay', 'wechat', 'bank', 'cash'].includes(acc.id) && !acc.id.toLowerCase().includes('okx') && acc.currency !== 'CNY') {
+                        if (t.type !== 'transfer' || !isTargetView) {
+                             displayAmount = parseFloat(t.amount.toFixed(12)).toString();
+                        } else if (t.type === 'transfer' && isTargetView) {
+                             const finalVal = t.targetAmount || convertCurrency(t.amount, t.currency, displayCurrency);
+                             displayAmount = parseFloat(finalVal.toFixed(12)).toString();
+                        }
+                    }
+
                     const item = document.createElement('div');
                     item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
                     item.onclick = function() { window.handleTxClick(this, t.id); };
@@ -1861,7 +1919,7 @@
                         </div>
                         <div class="text-right shrink-0 ml-2">
                             <div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div>
-                            <div class="text-[10px] text-crypto-subtext font-mono">${t.currency}</div>
+                            <div class="text-[10px] text-crypto-subtext font-mono">${displayCurrency}</div>
                         </div>
                     `;
                     list.appendChild(item);
@@ -2518,7 +2576,19 @@
                 
                 toAcc.balance = fixPrecision(toAcc.balance + finalAmount);
                 
-                state.transactions.push({ id: Date.now(), type: 'transfer', amount: amount, currency: fromAcc.currency, accountId: fromAcc.id, targetAccountId: toAcc.id, date: date, note: autoNote });
+                // ★ 新增：保存 targetAmount 和 targetCurrency 到记录中，方便后续读取和展示
+                state.transactions.push({ 
+                    id: Date.now(), 
+                    type: 'transfer', 
+                    amount: amount, 
+                    currency: fromAcc.currency, 
+                    accountId: fromAcc.id, 
+                    targetAccountId: toAcc.id, 
+                    targetAmount: finalAmount, 
+                    targetCurrency: toAcc.currency, 
+                    date: date, 
+                    note: autoNote 
+                });
             } else {
                 if (temp.type === 'expense') fromAcc.balance = fixPrecision(fromAcc.balance - amount);
                 else fromAcc.balance = fixPrecision(fromAcc.balance + amount);
