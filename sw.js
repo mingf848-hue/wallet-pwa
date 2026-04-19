@@ -1,5 +1,5 @@
 // 1. 修改版本号 (版本号升级，确保浏览器重新缓存新文件)
-const CACHE_NAME = 'bitledger-v2.7-offline-fix';
+const CACHE_NAME = 'bitledger-v2.8-amount-ui';
 
 // 2. 将所有用到的外部 CDN 链接全部加入缓存列表
 const urlsToCache = [
