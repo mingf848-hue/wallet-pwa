@@ -265,10 +265,18 @@
         }
         .recording-mode {
             animation: pulse-ring 1s infinite cubic-bezier(0.4, 0, 0.2, 1) !important;
-            background-color: #00f0ff !important; 
+            background-color: #00f0ff !important;
             border-color: rgba(0, 240, 255, 0.5) !important;
             transform: scale(1.15) !important;
         }
+
+        /* --- 金额输入增强 --- */
+        .keypad-operator { background-color: #1c2128; color: #00f0ff; font-weight: 600; }
+        .keypad-operator:active { background-color: rgba(0, 240, 255, 0.12) !important; }
+        #btn-submit { letter-spacing: 0.08em; transition: all 0.2s cubic-bezier(0.19, 1, 0.22, 1); }
+        #btn-submit:active { transform: scale(0.97); opacity: 0.88; }
+        .amount-display-text { font-size: clamp(1.9rem, 10vw, 3rem); word-break: break-all; line-height: 1.1; }
+        #amount-expression-row, #input-result-preview { transition: opacity 0.2s ease; }
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
@@ -657,91 +665,141 @@
         <!-- Add Transaction Modal -->
         <div id="add-modal" class="fixed inset-0 z-50 hidden flex-col justify-end">
             <div class="absolute inset-0 modal-backdrop" onclick="window.closeAddModal()"></div>
-            <div class="modular-panel rounded-t-3xl w-full relative z-10 flex flex-col h-auto max-h-[95vh] pb-6 transform transition-transform duration-300 ease-out translate-y-full">
-                <div class="w-full flex justify-center pt-3 pb-2"><div class="w-12 h-1.5 bg-gray-700/50 rounded-full"></div></div>
-                
-                <div class="flex px-6 mb-4 gap-3">
-                    <button id="tab-expense" onclick="window.setTransactionType('expense')" class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-transparent transition-all">支出</button>
-                    <button id="tab-income" onclick="window.setTransactionType('income')" class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-transparent transition-all">收入</button>
-                    <button id="tab-transfer" onclick="window.setTransactionType('transfer')" class="flex-1 py-2.5 rounded-xl text-sm font-bold border border-transparent transition-all">划转</button>
+            <div class="modular-panel rounded-t-3xl w-full relative z-10 flex flex-col h-auto max-h-[95vh] transform transition-transform duration-300 ease-out translate-y-full">
+
+                <!-- Drag Handle -->
+                <div class="w-full flex justify-center pt-3 pb-2">
+                    <div class="w-10 h-1 bg-gray-600/60 rounded-full"></div>
                 </div>
 
-               <div id="transfer-ui" class="px-6 mb-4 hidden">
-                    <div class="flex items-center gap-3 bg-crypto-bg p-4 rounded-2xl border border-crypto-border">
+                <!-- Transaction Type Tabs -->
+                <div class="flex px-4 mb-3 gap-2">
+                    <button id="tab-expense" onclick="window.setTransactionType('expense')"
+                        class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 border border-transparent text-crypto-subtext transition-all active:scale-95">
+                        <i class="fa-solid fa-arrow-down text-xs"></i>支出
+                    </button>
+                    <button id="tab-income" onclick="window.setTransactionType('income')"
+                        class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 border border-transparent text-crypto-subtext transition-all active:scale-95">
+                        <i class="fa-solid fa-arrow-up text-xs"></i>收入
+                    </button>
+                    <button id="tab-transfer" onclick="window.setTransactionType('transfer')"
+                        class="flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 border border-transparent text-crypto-subtext transition-all active:scale-95">
+                        <i class="fa-solid fa-right-left text-xs"></i>划转
+                    </button>
+                </div>
+
+                <!-- Transfer-specific UI -->
+                <div id="transfer-ui" class="px-4 mb-3 hidden">
+                    <div class="flex items-center gap-3 bg-crypto-bg p-3 rounded-2xl border border-crypto-border">
                         <div class="flex-1">
-                            <div class="text-[10px] text-crypto-subtext mb-1">从</div>
-                            <select id="transfer-from" class="w-full bg-transparent text-white text-sm outline-none font-medium" onchange="window.updateTransferUI()"></select>
+                            <div class="text-[10px] text-crypto-subtext mb-1 font-medium uppercase tracking-wide">从</div>
+                            <select id="transfer-from" class="w-full bg-transparent text-white text-sm outline-none font-semibold" onchange="window.updateTransferUI()"></select>
                         </div>
-                        <div class="text-crypto-subtext"><i class="fa-solid fa-arrow-right-long"></i></div>
+                        <div class="flex-shrink-0 w-7 h-7 rounded-full bg-crypto-primary/10 border border-crypto-primary/30 flex items-center justify-center">
+                            <i class="fa-solid fa-arrow-right text-[10px] text-crypto-primary"></i>
+                        </div>
                         <div class="flex-1 text-right">
-                            <div class="text-[10px] text-crypto-subtext mb-1">到</div>
-                            <select id="transfer-to" class="w-full bg-transparent text-white text-sm outline-none text-right font-medium" onchange="window.updateTransferUI()"></select>
+                            <div class="text-[10px] text-crypto-subtext mb-1 font-medium uppercase tracking-wide text-right">到</div>
+                            <select id="transfer-to" class="w-full bg-transparent text-white text-sm outline-none text-right font-semibold" onchange="window.updateTransferUI()"></select>
                         </div>
                     </div>
                 </div>
 
-                <div id="transfer-target-input-container" class="px-6 mb-4 hidden transition-all">
+                <!-- Transfer Target Amount Input -->
+                <div id="transfer-target-input-container" class="px-4 mb-3 hidden transition-all">
                     <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex items-center justify-between">
                         <div class="flex flex-col">
-                            <span class="text-[10px] text-crypto-subtext">实际到账 (可选)</span>
-                            <span class="text-[9px] text-gray-500">留空则自动换算</span>
+                            <span class="text-[10px] text-crypto-subtext font-medium">实际到账</span>
+                            <span class="text-[9px] text-gray-500 mt-0.5">留空则自动换算</span>
                         </div>
                         <div class="flex items-center gap-2">
-                             <input type="text" id="transfer-final-amount" readonly onclick="window.openUniversalKeypad('transfer-final-amount')" placeholder="自动计算" class="bg-transparent text-right text-white font-mono font-bold outline-none w-32 placeholder-gray-600 transition-colors focus:text-crypto-primary" inputmode="none">
+                            <input type="text" id="transfer-final-amount" readonly
+                                onclick="window.openUniversalKeypad('transfer-final-amount')"
+                                placeholder="自动计算"
+                                class="bg-transparent text-right text-white font-mono font-bold outline-none w-28 placeholder-gray-600 transition-colors"
+                                inputmode="none">
                             <span id="transfer-target-currency-label" class="text-xs text-crypto-primary font-bold font-mono"></span>
                         </div>
                     </div>
                 </div>
 
-                <div class="px-6 mb-2">
-                    <div class="flex items-end justify-between border-b border-crypto-border pb-2">
-                        <div class="flex flex-col">
-                             <span class="text-5xl font-mono font-bold text-white tracking-tight" id="input-amount">0</span>
-                             <div class="flex items-center gap-1.5 mt-1">
-                                 <i class="fa-regular fa-calendar-check text-[10px] text-crypto-subtext"></i>
-                                 <span id="input-date-display" class="text-[10px] text-crypto-subtext font-mono">Today</span>
-                             </div>
-                        </div>
-                        <span class="text-base text-crypto-primary font-mono mb-6 font-bold" id="input-currency-label">CNY</span>
+                <!-- Amount Display Section -->
+                <div class="px-5 mb-2">
+                    <!-- Expression preview row (visible when typing a calculation) -->
+                    <div id="amount-expression-row" class="h-5 flex items-center gap-1.5 mb-1 hidden">
+                        <span id="amount-expression-text" class="text-xs text-crypto-subtext font-mono"></span>
+                        <i class="fa-solid fa-equals text-[9px] text-crypto-primary/70"></i>
                     </div>
-                    <div id="transfer-rate-hint" class="text-[10px] text-crypto-subtext mt-1.5 h-4 hidden font-mono">Rate: 1 USDT ≈ 7.25 CNY</div>
+
+                    <div class="flex items-end justify-between border-b border-crypto-border/50 pb-3">
+                        <div class="flex-1 min-w-0 overflow-hidden">
+                            <span class="amount-display-text font-mono font-bold text-white tracking-tight" id="input-amount">0</span>
+                        </div>
+                        <div class="flex flex-col items-end gap-1.5 ml-3 flex-shrink-0 pb-1">
+                            <span class="text-sm text-crypto-primary font-mono font-bold tracking-wider" id="input-currency-label">CNY</span>
+                            <button onclick="window.openDatePicker()"
+                                class="flex items-center gap-1 bg-crypto-hover/40 px-2 py-1 rounded-lg border border-crypto-border/50 transition-all active:scale-95 active:border-crypto-primary/40">
+                                <i class="fa-regular fa-calendar text-[10px] text-crypto-subtext"></i>
+                                <span id="input-date-display" class="text-[10px] text-crypto-subtext font-mono">今天</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Result preview / exchange rate hint (shared row) -->
+                    <div class="h-4 mt-1.5 flex items-center">
+                        <div id="input-result-preview" class="text-[11px] text-crypto-primary font-mono hidden"></div>
+                        <div id="transfer-rate-hint" class="text-[10px] text-crypto-subtext font-mono hidden"></div>
+                    </div>
                 </div>
 
-                <div id="selectors-ui" class="px-6 space-y-4 mb-4 transition-all">
+                <!-- Account & Category Selectors -->
+                <div id="selectors-ui" class="px-5 space-y-3 mb-3 transition-all">
                     <div>
-                        <div class="text-[10px] text-crypto-subtext mb-1.5 ml-1">账户</div>
+                        <div class="text-[10px] text-crypto-subtext mb-1.5 font-medium uppercase tracking-wider">账户</div>
                         <div class="flex gap-2 overflow-x-auto hide-scrollbar" id="modal-account-list"></div>
                     </div>
                     <div>
-                        <div class="text-[10px] text-crypto-subtext mb-1.5 ml-1">分类</div>
-                        <div class="flex gap-2 overflow-x-auto hide-scrollbar py-1" id="modal-category-list"></div>
+                        <div class="text-[10px] text-crypto-subtext mb-1.5 font-medium uppercase tracking-wider">分类</div>
+                        <div class="flex gap-2 overflow-x-auto hide-scrollbar py-0.5" id="modal-category-list"></div>
                     </div>
                 </div>
 
-                <div class="px-6 py-3 bg-crypto-bg/50 border-y border-crypto-border mb-0">
-                    <input type="text" id="input-note" placeholder="添加备注..." class="bg-transparent w-full text-sm text-white outline-none placeholder-gray-600">
+                <!-- Note Input -->
+                <div class="px-5 py-2.5 bg-crypto-bg/40 border-t border-crypto-border/60 flex items-center gap-2.5">
+                    <i class="fa-regular fa-pen-to-square text-sm text-crypto-subtext/60 flex-shrink-0"></i>
+                    <input type="text" id="input-note" placeholder="添加备注..."
+                        class="bg-transparent flex-1 text-sm text-white outline-none placeholder-gray-600">
                 </div>
 
-                <div class="grid grid-cols-4 gap-[1px] bg-crypto-border/50">
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('7')">7</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('8')">8</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('9')">9</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-crypto-subtext text-lg" onclick="window.openDatePicker()"><i class="fa-regular fa-calendar"></i></button>
+                <!-- Numeric Keypad -->
+                <div class="grid grid-cols-4 gap-[1px] bg-crypto-border/30 mt-[1px]">
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('7')">7</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('8')">8</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('9')">9</button>
+                    <button class="keypad-btn keypad-operator h-14 text-xl" onclick="window.keypadPress('/')">÷</button>
 
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('4')">4</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('5')">5</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('6')">6</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('+')">+</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('4')">4</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('5')">5</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('6')">6</button>
+                    <button class="keypad-btn keypad-operator h-14 text-xl" onclick="window.keypadPress('*')">×</button>
 
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('1')">1</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('2')">2</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('3')">3</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('-')">-</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('1')">1</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('2')">2</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('3')">3</button>
+                    <button class="keypad-btn keypad-operator h-14 text-xl" onclick="window.keypadPress('-')">−</button>
 
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('.')">.</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-white text-2xl font-mono" onclick="window.keypadPress('0')">0</button>
-                    <button class="keypad-btn bg-crypto-card h-16 text-crypto-subtext text-xl" onclick="window.keypadPress('backspace')"><i class="fa-solid fa-delete-left"></i></button>
-                    <button class="keypad-btn bg-crypto-primary h-16 text-black font-bold text-xl" id="btn-submit" onclick="window.submitTransaction()">确认</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('.')">.</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-white text-xl font-mono" onclick="window.keypadPress('0')">0</button>
+                    <button class="keypad-btn bg-crypto-card h-14 text-crypto-subtext text-lg" onclick="window.keypadPress('backspace')"><i class="fa-solid fa-delete-left"></i></button>
+                    <button class="keypad-btn keypad-operator h-14 text-xl" onclick="window.keypadPress('+')">+</button>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="px-4 pt-2.5 pb-6">
+                    <button id="btn-submit" onclick="window.submitTransaction()"
+                        class="w-full py-3.5 rounded-2xl font-bold text-base shadow-lg bg-crypto-down text-white">
+                        确认支出
+                    </button>
                 </div>
             </div>
         </div>
@@ -2113,10 +2171,15 @@
                 fromSel.innerHTML += opt; toSel.innerHTML += opt;
             });
             temp.amount = '0'; temp.accountId = state.accounts[0] ? state.accounts[0].id : null; temp.date = new Date();
-            
-            document.getElementById('input-amount').innerText = '0'; 
+
+            document.getElementById('input-amount').innerText = '0';
             document.getElementById('input-note').value = '';
-            updateAddModalDateDisplay(); 
+            document.getElementById('transfer-final-amount').value = '';
+            const exprRow = document.getElementById('amount-expression-row');
+            const resultPrev = document.getElementById('input-result-preview');
+            if (exprRow) exprRow.classList.add('hidden');
+            if (resultPrev) resultPrev.classList.add('hidden');
+            updateAddModalDateDisplay();
 
             window.setTransactionType(defaultType);
         };
@@ -2124,8 +2187,8 @@
         function updateAddModalDateDisplay() {
             const d = temp.date;
             const now = new Date();
-            let label = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-            if (d.toDateString() === now.toDateString()) label = "Today";
+            let label = `${d.getMonth()+1}/${d.getDate()}`;
+            if (d.toDateString() === now.toDateString()) label = "今天";
             document.getElementById('input-date-display').innerText = label;
         }
 
@@ -2169,14 +2232,44 @@
             });
         };
 
-        // 2. 修复键盘：支持加减乘除 (+ - * /)
+        // 格式化表达式用于显示 (/ → ÷, * → ×)
+        function fmtExprDisplay(expr) {
+            return expr.replace(/\*/g, '×').replace(/\//g, '÷');
+        }
+
+        // 计算表达式预览结果
+        function updateAmountExpressionPreview() {
+            const expr = temp.amount.toString();
+            const exprRow = document.getElementById('amount-expression-row');
+            const resultPreview = document.getElementById('input-result-preview');
+            if (!exprRow || !resultPreview) return;
+            const hasOp = /[+\-*\/]/.test(expr);
+            const endsWithOp = /[+\-*\/]$/.test(expr);
+            if (hasOp && !endsWithOp) {
+                try {
+                    if (/^[\d.+\-*\/]+$/.test(expr)) {
+                        const result = Function('"use strict";return (' + expr + ')')();
+                        if (!isNaN(result) && isFinite(result) && result >= 0) {
+                            exprRow.classList.remove('hidden');
+                            document.getElementById('amount-expression-text').innerText = fmtExprDisplay(expr);
+                            resultPreview.classList.remove('hidden');
+                            resultPreview.innerText = '= ' + parseFloat(result.toFixed(2)).toLocaleString('zh-CN');
+                            return;
+                        }
+                    }
+                } catch(e) {}
+            }
+            exprRow.classList.add('hidden');
+            resultPreview.classList.add('hidden');
+        }
+
+        // 2. 键盘输入：支持加减乘除 (+ - * /)
         window.keypadPress = (k) => {
             let cur = temp.amount.toString();
             if (k === 'backspace') {
                 temp.amount = cur.length > 1 ? cur.slice(0, -1) : '0';
             }
             else if (['+','-','*','/'].includes(k)) {
-                // 防止连续输入运算符
                 const lastChar = cur.slice(-1);
                 if (['+','-','*','/'].includes(lastChar)) {
                     temp.amount = cur.slice(0, -1) + k;
@@ -2184,15 +2277,16 @@
                     temp.amount = cur + k;
                 }
             }
-            else { 
-                if (cur === '0' && k !== '.') temp.amount = k; 
-                else { 
-                    if (k === '.' && cur.includes('.') && !cur.match(/[+\-*\/]/)) return; 
-                    if (cur.length > 20) return; 
-                    temp.amount = cur + k; 
-                } 
+            else {
+                if (cur === '0' && k !== '.') temp.amount = k;
+                else {
+                    if (k === '.' && cur.includes('.') && !cur.match(/[+\-*\/]/)) return;
+                    if (cur.length > 20) return;
+                    temp.amount = cur + k;
+                }
             }
-            document.getElementById('input-amount').innerText = temp.amount;
+            document.getElementById('input-amount').innerText = fmtExprDisplay(temp.amount);
+            updateAmountExpressionPreview();
         };
 
         window.openUniversalKeypad = (inputId) => {
@@ -2600,28 +2694,39 @@
         // 4. 更新 UI 显示：控制转账输入框显隐
         window.setTransactionType = (type) => {
             temp.type = type;
-            const tExp = document.getElementById('tab-expense'); const tInc = document.getElementById('tab-income'); const tTra = document.getElementById('tab-transfer');
+            const tExp = document.getElementById('tab-expense');
+            const tInc = document.getElementById('tab-income');
+            const tTra = document.getElementById('tab-transfer');
             const btn = document.getElementById('btn-submit');
-            [tExp, tInc, tTra].forEach(t => t.className = "flex-1 py-2.5 rounded-xl text-sm font-medium border border-transparent text-crypto-subtext transition-all");
-            const activeClass = "flex-1 py-2.5 rounded-xl text-sm font-bold border border-crypto-border bg-crypto-card shadow-sm text-white";
-            
-            document.getElementById('selectors-ui').classList.remove('hidden'); 
-            document.getElementById('transfer-ui').classList.add('hidden'); 
-            document.getElementById('transfer-rate-hint').classList.add('hidden');
-            document.getElementById('transfer-target-input-container').classList.add('hidden'); // 默认隐藏
+            const inactiveTab = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 border border-transparent text-crypto-subtext transition-all active:scale-95";
+            const activeTabBase = "flex-1 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 border border-crypto-border bg-crypto-card text-white transition-all active:scale-95";
+            const btnBase = "w-full py-3.5 rounded-2xl font-bold text-base shadow-lg";
+            [tExp, tInc, tTra].forEach(t => t.className = inactiveTab);
 
-            if (type === 'expense') { tExp.className = activeClass + " text-crypto-down"; btn.className = "keypad-btn bg-crypto-down h-16 text-white font-bold text-xl"; btn.innerText = "确认支出"; }
-            else if (type === 'income') { tInc.className = activeClass + " text-crypto-up"; btn.className = "keypad-btn bg-crypto-up h-16 text-white font-bold text-xl"; btn.innerText = "确认收入"; }
-            else { 
-                tTra.className = activeClass + " text-crypto-primary"; 
-                btn.className = "keypad-btn bg-crypto-primary h-16 text-black font-bold text-xl"; 
-                btn.innerText = "确认划转"; 
-                document.getElementById('selectors-ui').classList.add('hidden'); 
-                document.getElementById('transfer-ui').classList.remove('hidden'); 
-                document.getElementById('transfer-target-input-container').classList.remove('hidden'); // 显示
-                window.updateTransferUI(); 
+            document.getElementById('selectors-ui').classList.remove('hidden');
+            document.getElementById('transfer-ui').classList.add('hidden');
+            document.getElementById('transfer-rate-hint').classList.add('hidden');
+            document.getElementById('transfer-target-input-container').classList.add('hidden');
+
+            if (type === 'expense') {
+                tExp.className = activeTabBase + " text-crypto-down";
+                btn.className = btnBase + " bg-crypto-down text-white";
+                btn.innerText = "确认支出";
+            } else if (type === 'income') {
+                tInc.className = activeTabBase + " text-crypto-up";
+                btn.className = btnBase + " bg-crypto-up text-white";
+                btn.innerText = "确认收入";
+            } else {
+                tTra.className = activeTabBase + " text-crypto-primary";
+                btn.className = btnBase + " bg-crypto-primary text-black";
+                btn.innerText = "确认划转";
+                document.getElementById('selectors-ui').classList.add('hidden');
+                document.getElementById('transfer-ui').classList.remove('hidden');
+                document.getElementById('transfer-target-input-container').classList.remove('hidden');
+                window.updateTransferUI();
             }
-            if(type !== 'transfer') renderModalAccounts(); renderModalCategories();
+            if (type !== 'transfer') renderModalAccounts();
+            renderModalCategories();
         };
 
         // 5. 更新转账 UI：处理币种标签
@@ -2687,31 +2792,34 @@
         function renderModalAccounts() {
             const container = document.getElementById('modal-account-list');
             container.innerHTML = '';
-            if (state.accounts.length === 0) { container.innerHTML = '<span class="text-xs text-crypto-subtext p-1">无账户，请先添加</span>'; return; }
+            if (state.accounts.length === 0) {
+                container.innerHTML = '<span class="text-xs text-crypto-subtext p-1">无账户，请先添加</span>';
+                return;
+            }
             state.accounts.forEach(acc => {
                 const isSel = temp.accountId === acc.id;
                 const btn = document.createElement('button');
-                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg border text-xs flex items-center gap-2 ${isSel ? 'bg-crypto-primary text-black border-crypto-primary font-bold' : 'bg-crypto-bg border-crypto-border text-crypto-subtext'}`;
+                btn.className = `flex-shrink-0 px-3 py-2 rounded-xl border text-xs flex items-center gap-2 transition-all active:scale-95 ${isSel ? 'bg-crypto-primary text-black border-crypto-primary font-bold shadow-sm' : 'bg-crypto-bg/80 border-crypto-border text-crypto-subtext'}`;
                 const iconHtml = getIconHtml(acc.id, acc.icon, acc.color, 'symbol');
-                btn.innerHTML = `<div class="w-6 h-4 rounded flex items-center justify-center shadow-sm overflow-hidden" style="background-color: ${acc.color}">${iconHtml}</div> ${acc.name}`;
+                btn.innerHTML = `<div class="w-5 h-5 rounded-md flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0" style="background-color: ${acc.color}">${iconHtml}</div><span>${acc.name}</span>`;
                 btn.onclick = () => { temp.accountId = acc.id; document.getElementById('input-currency-label').innerText = acc.currency; renderModalAccounts(); };
                 container.appendChild(btn);
             });
             const acc = state.accounts.find(a => a.id === temp.accountId);
-            if(acc) document.getElementById('input-currency-label').innerText = acc.currency;
+            if (acc) document.getElementById('input-currency-label').innerText = acc.currency;
         }
 
         function renderModalCategories() {
             const list = temp.type === 'income' ? categories.income : categories.expense;
             const container = document.getElementById('modal-category-list');
             container.innerHTML = '';
-            if(!temp.catId && list.length > 0) temp.catId = list[0].id;
+            if (!temp.catId && list.length > 0) temp.catId = list[0].id;
             list.forEach(c => {
                 const isSel = temp.catId === c.id;
                 const btn = document.createElement('button');
-                btn.className = "flex-shrink-0 w-12 flex flex-col items-center gap-1";
+                btn.className = "flex-shrink-0 w-[3.25rem] flex flex-col items-center gap-1.5";
                 btn.onclick = () => { temp.catId = c.id; renderModalCategories(); };
-                btn.innerHTML = `<div class="w-10 h-10 rounded-full flex items-center justify-center border transition-all ${isSel ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-transparent text-crypto-subtext border-crypto-border'}"><i class="fa-solid ${c.icon}"></i></div><span class="text-[10px] ${isSel ? 'text-crypto-primary' : 'text-crypto-subtext'}">${c.name}</span>`;
+                btn.innerHTML = `<div class="w-10 h-10 rounded-2xl flex items-center justify-center border transition-all active:scale-95 ${isSel ? 'bg-crypto-primary text-black border-crypto-primary shadow-sm' : 'bg-crypto-hover/50 text-crypto-subtext border-crypto-border/60'}"><i class="fa-solid ${c.icon} text-sm"></i></div><span class="text-[10px] font-medium ${isSel ? 'text-crypto-primary' : 'text-crypto-subtext/80'}">${c.name}</span>`;
                 container.appendChild(btn);
             });
         }
