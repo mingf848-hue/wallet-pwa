@@ -3,16 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>BitLedger Atelier</title>
+    <title>BitLedger Pro V12.6.1 (Transfer Fix)</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="transparent-logo.png">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#08110f">
+    <meta name="theme-color" content="#0d1117">
     <link rel="icon" href="transparent-logosmall.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -26,17 +23,17 @@
                 extend: {
                     colors: {
                         crypto: {
-                            bg: '#08110f',
-                            card: '#111c19',
-                            hover: '#162521',
-                            primary: '#d5b06f',
-                            text: '#f6efe2',
-                            subtext: '#92a097',
-                            up: '#7dd3a6',
-                            down: '#ff8a7a',
-                            border: '#23332f',
-                            gold: '#f6d28b',
-                            purple: '#7aa28f'
+                            bg: '#0d1117',
+                            card: '#161b22',
+                            hover: '#21262d',
+                            primary: '#00f0ff',
+                            text: '#e6edf3',
+                            subtext: '#8b949e',
+                            up: '#ef4444',        
+                            down: '#22c55e',       
+                            border: '#30363d',
+                            gold: '#ffd700',
+                            purple: '#8b5cf6'
                         }
                     },
                     spacing: {
@@ -44,8 +41,7 @@
                         'safe-top': 'env(safe-area-inset-top)',
                     },
                     fontFamily: {
-                        sans: ['Manrope', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-                        display: ['Fraunces', 'Georgia', 'serif'],
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
                         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
                     }
                 }
@@ -89,22 +85,8 @@
             overscroll-behavior: none;
             -webkit-tap-highlight-color: transparent;
             -webkit-touch-callout: none;
-            background:
-                radial-gradient(circle at top, rgba(213, 176, 111, 0.14), transparent 28%),
-                radial-gradient(circle at 20% 20%, rgba(125, 211, 166, 0.08), transparent 24%),
-                linear-gradient(180deg, #0d1714 0%, #08110f 35%, #06100d 100%);
-            color: #f6efe2;
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background:
-                linear-gradient(120deg, rgba(255,255,255,0.03), transparent 28%, transparent 72%, rgba(255,255,255,0.02)),
-                repeating-linear-gradient(180deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 24px);
-            pointer-events: none;
-            opacity: 0.5;
+            background-color: #0d1117;
+            color: #e6edf3;
         }
         
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -136,7 +118,7 @@
             transform: translateY(0) scale(1);
         }
         
-        .nav-btn.active { color: #d5b06f; }
+        .nav-btn.active { color: #00f0ff; }
         .nav-btn.active i { transform: scale(1.1); transition: transform 0.2s; }
       
         /* --- 卡片与特效 --- */
@@ -149,16 +131,16 @@
 
         .card-sheen {
             background-image: 
-                linear-gradient(145deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.08) 100%),
-                radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 45%);
-            box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.85), inset 0 1px 0 0 rgba(255, 255, 255, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(12px);
+                linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.01) 40%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%),
+                radial-gradient(circle at 100% 0%, rgba(255,255,255,0.15) 0%, transparent 60%);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(4px);
         }
 
         .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-        .modal-backdrop { background: rgba(3, 7, 6, 0.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-        .modular-panel { background: linear-gradient(180deg, rgba(19, 31, 28, 0.98), rgba(12, 20, 18, 0.98)); border-top: 1px solid rgba(255,255,255,0.08); box-shadow: 0 -20px 60px rgba(0,0,0,0.58); will-change: transform, opacity; }
+        .modal-backdrop { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+        .modular-panel { background: rgba(22, 27, 34, 0.95); border-top: 1px solid rgba(255,255,255,0.08); box-shadow: 0 -10px 40px rgba(0,0,0,0.5); will-change: transform, opacity; }
 
         @keyframes click-pulse-glow {
             0% { transform: scale(1); border-color: rgba(255,255,255,0.05); }
@@ -208,7 +190,7 @@
             transform: translate(-50%, -50%);
             width: 80%;
             height: 1px;
-            background: linear-gradient(90deg, transparent 0%, rgba(213,176,111,0.22) 20%, rgba(255,255,255,0.08) 50%, rgba(213,176,111,0.22) 80%, transparent 100%);
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.1) 80%, transparent 100%);
         }
         .content-divider-pill {
             position: absolute;
@@ -216,9 +198,9 @@
             transform: translate(-50%, -50%);
             width: 40px;
             height: 4px;
-            background: linear-gradient(90deg, rgba(213,176,111,0.9), rgba(125,211,166,0.8));
+            background-color: rgba(255,255,255,0.15);
             border-radius: 10px;
-            box-shadow: 0 0 18px rgba(213,176,111,0.35);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
             backdrop-filter: blur(4px);
         }
 
@@ -242,9 +224,9 @@
         .hidden-keypad, .hidden-picker { transform: translateY(100%); }
         
         .input-active-highlight {
-            border-color: #d5b06f !important;
-            box-shadow: 0 0 0 3px rgba(213, 176, 111, 0.14) !important;
-            background-color: rgba(213, 176, 111, 0.06) !important;
+            border-color: #00f0ff !important;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3) !important;
+            background-color: rgba(0, 240, 255, 0.05) !important;
             color: #fff !important;
             transition: all 0.2s ease;
         }
@@ -268,99 +250,33 @@
             aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
             font-size: 0.9rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.1s;
         }
-        .calendar-day.active { background-color: #d5b06f; color: #08110f; font-weight: bold; box-shadow: 0 0 14px rgba(213,176,111,0.3); }
-        .calendar-day.today-marker { border: 1px solid #d5b06f; color: #d5b06f; }
+        .calendar-day.active { background-color: #00f0ff; color: #000; font-weight: bold; box-shadow: 0 0 10px rgba(0,240,255,0.4); }
+        .calendar-day.today-marker { border: 1px solid #00f0ff; color: #00f0ff; }
         .calendar-day:active:not(.active) { background-color: rgba(255,255,255,0.1); }
         
         .prose h3 { color: #e6edf3; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
         .prose p { color: #8b949e; margin-bottom: 0.5rem; font-size: 0.9rem; line-height: 1.5; }
-        .prose strong { color: #d5b06f; }
+        .prose strong { color: #00f0ff; }
 
         /* --- 麦克风长按特效 --- */
         @keyframes pulse-ring {
-            0% { box-shadow: 0 0 0 0 rgba(213, 176, 111, 0.8); }
-            100% { box-shadow: 0 0 0 25px rgba(213, 176, 111, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.8); }
+            100% { box-shadow: 0 0 0 25px rgba(0, 240, 255, 0); }
         }
         .recording-mode {
             animation: pulse-ring 1s infinite cubic-bezier(0.4, 0, 0.2, 1) !important;
-            background-color: #d5b06f !important;
-            border-color: rgba(213, 176, 111, 0.5) !important;
+            background-color: #00f0ff !important;
+            border-color: rgba(0, 240, 255, 0.5) !important;
             transform: scale(1.15) !important;
         }
 
         /* --- 金额输入增强 --- */
-        .keypad-operator { background-color: #182420; color: #d5b06f; font-weight: 600; }
-        .keypad-operator:active { background-color: rgba(213, 176, 111, 0.12) !important; }
+        .keypad-operator { background-color: #1c2128; color: #00f0ff; font-weight: 600; }
+        .keypad-operator:active { background-color: rgba(0, 240, 255, 0.12) !important; }
         #btn-submit { letter-spacing: 0.08em; transition: all 0.2s cubic-bezier(0.19, 1, 0.22, 1); }
         #btn-submit:active { transform: scale(0.97); opacity: 0.88; }
         .amount-display-text { font-size: clamp(1.9rem, 10vw, 3rem); word-break: break-all; line-height: 1.1; }
         #amount-expression-row, #input-result-preview { transition: opacity 0.2s ease; }
-
-        #app-container {
-            width: min(100%, 430px);
-            margin: 0 auto;
-            min-height: 100dvh;
-            max-height: 100dvh;
-            position: relative;
-            background:
-                radial-gradient(circle at top, rgba(213, 176, 111, 0.08), transparent 22%),
-                linear-gradient(180deg, #0d1714 0%, #09110f 100%);
-            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-            border-inline: 1px solid rgba(255,255,255,0.04);
-            overflow: hidden;
-        }
-
-        #app-container::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background:
-                radial-gradient(circle at 85% 12%, rgba(213, 176, 111, 0.11), transparent 18%),
-                radial-gradient(circle at 15% 28%, rgba(125, 211, 166, 0.08), transparent 20%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        #page-home, #page-home > * {
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero-shell {
-            background:
-                linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)),
-                linear-gradient(180deg, rgba(213,176,111,0.14), rgba(17,28,25,0.96));
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 20px 50px -24px rgba(0,0,0,0.8);
-            backdrop-filter: blur(12px);
-        }
-
-        .section-kicker {
-            text-transform: uppercase;
-            letter-spacing: 0.24em;
-            font-size: 0.65rem;
-            color: rgba(246, 239, 226, 0.56);
-        }
-
-        .editorial-number {
-            font-family: 'Fraunces', serif;
-            letter-spacing: -0.04em;
-        }
-
-        #transaction-list > div,
-        #accounts-grid > div {
-            border-radius: 24px !important;
-        }
-
-        @media (min-width: 431px) {
-            body {
-                padding-inline: 24px;
-            }
-
-            #app-container {
-                margin-block: 0;
-            }
-        }
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden flex flex-col font-sans antialiased">
@@ -480,38 +396,26 @@
         
         <div id="page-home" class="page flex flex-col h-full w-full absolute inset-0 bg-crypto-bg z-10">
             <!-- Common Header (Top Bar only) -->
-            <header class="pt-safe-top px-5 pb-3 z-20 shrink-0">
-                <div class="hero-shell rounded-b-[2rem] px-4 pt-3 pb-4">
-                    <div class="flex justify-between items-start py-1">
-                        <div class="min-w-0">
-                            <div class="section-kicker mb-2">Personal Ledger</div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-9 h-9 rounded-2xl bg-white/8 border border-white/10 flex items-center justify-center overflow-hidden shadow-lg shadow-black/20">
-                                     <img src="transparent-logosmall.png" class="w-6 h-6 object-contain" alt="Logo">
-                                </div>
-                                <div>
-                                    <div class="font-display editorial-number text-[1.45rem] leading-none text-white">BitLedger</div>
-                                    <div class="text-[11px] tracking-[0.22em] uppercase text-crypto-subtext mt-1">iPhone Wallet Atelier</div>
-                                </div>
-                            </div>
+            <header class="pt-safe-top px-5 pb-2 bg-gradient-to-b from-crypto-card to-crypto-bg z-20 shadow-lg border-b border-crypto-border/30 shrink-0">
+                <div class="flex justify-between items-center py-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 flex items-center justify-center overflow-hidden">
+                             <img src="transparent-logosmall.png" class="w-6 h-6 object-contain" alt="Logo">
                         </div>
-                        
-                        <div class="flex items-center gap-3 pt-1">
+                        <span class="font-bold tracking-wide italic">BitLedger<span class="text-crypto-primary">Pro</span></span>
+                    </div>
+                    
+                    <div class="flex items-center gap-4">
                         <button onclick="window.openAiReport()" class="flex items-center justify-center active:scale-95 transition-transform">
                              <img src="https://raw.githubusercontent.com/mingf848-hue/iconelf/main/gemini-text%20(1).svg" 
-                                  class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(213,176,111,0.45)]" 
+                                  class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" 
                                   alt="AI Analysis">
                         </button>
                         
-                        <button onclick="document.getElementById('receipt-upload').click()" class="w-10 h-10 rounded-full bg-white/6 border border-white/10 text-crypto-subtext hover:text-white transition-colors active:scale-95">
+                        <button onclick="document.getElementById('receipt-upload').click()" class="text-crypto-subtext hover:text-white transition-colors active:scale-95">
                             <i class="fa-solid fa-camera text-lg"></i>
                         </button>
                         <input type="file" id="receipt-upload" accept="image/*" class="hidden" onchange="window.handleReceiptUpload(this)">
-                    </div>
-                </div>
-                    <div class="mt-4 flex items-center justify-between text-[11px] text-crypto-subtext px-1">
-                        <span>今天也把每一笔钱花得明白</span>
-                        <span class="section-kicker !text-[10px] !tracking-[0.18em]">14 Pro Max Fit</span>
                     </div>
                 </div>
             </header>
@@ -522,10 +426,10 @@
                 <!-- BILLS VIEW -->
                 <div id="view-bills" class="tab-content active">
                     <!-- FIXED HEADER SECTION -->
-                    <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
+     <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
                         <div class="mb-4">
                             <div class="flex items-center gap-2 mb-4 relative">
-                                <button id="date-range-display-btn" onclick="window.openDateRangePicker()" class="relative bg-white/5 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 active:scale-95 transition-transform hover:bg-white/8 shadow-lg shadow-black/10">
+                                <button id="date-range-display-btn" onclick="window.openDateRangePicker()" class="relative bg-crypto-card border border-crypto-border rounded-lg px-3 py-1.5 flex items-center gap-2 active:scale-95 transition-transform hover:bg-crypto-hover">
                                     <i class="fa-regular fa-calendar text-crypto-primary text-xs"></i>
                                     <span id="date-range-display" class="text-sm font-bold text-white outline-none z-10 relative">2023年10月</span>
                                     <i class="fa-solid fa-caret-down text-[10px] text-crypto-subtext"></i>
@@ -533,15 +437,15 @@
                             </div>
 
                             <div class="grid grid-cols-2 gap-3">
-                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden">
-                                    <div class="section-kicker mb-3">Monthly Spend</div>
-                                    <span class="text-[11px] text-crypto-subtext mb-1">本月支出 (CNY)</span>
-                                    <span class="text-[1.8rem] leading-none font-display editorial-number text-crypto-down" id="monthly-expense">0.00</span>
+                                <div class="bg-crypto-card/50 p-4 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                    <div class="absolute top-0 right-0 w-12 h-12 bg-crypto-down/5 rounded-bl-full -mr-3 -mt-3"></div>
+                                    <span class="text-[10px] text-crypto-subtext mb-1 uppercase tracking-wider">本月支出 (CNY)</span>
+                                    <span class="text-xl font-bold font-mono text-crypto-down" id="monthly-expense">0.00</span>
                                 </div>
-                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden">
-                                    <div class="section-kicker mb-3">Monthly Income</div>
-                                    <span class="text-[11px] text-crypto-subtext mb-1">本月收入 (CNY)</span>
-                                    <span class="text-[1.8rem] leading-none font-display editorial-number text-crypto-up" id="monthly-income">0.00</span>
+                                <div class="bg-crypto-card/50 p-4 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                    <div class="absolute top-0 right-0 w-12 h-12 bg-crypto-up/5 rounded-bl-full -mr-3 -mt-3"></div>
+                                    <span class="text-[10px] text-crypto-subtext mb-1 uppercase tracking-wider">本月收入 (CNY)</span>
+                                    <span class="text-xl font-bold font-mono text-crypto-up" id="monthly-income">0.00</span>
                                 </div>
                             </div>
                         </div>
@@ -561,7 +465,7 @@
                     <!-- SCROLLABLE LIST SECTION -->
                     <div class="flex-1 overflow-y-auto hide-scrollbar px-5 pb-24" onscroll="window.handleListScroll(this, 'bills-scroll-shadow')">
                         <div class="flex justify-between items-center mb-3">
-                             <h3 class="text-sm font-bold text-white tracking-[0.12em] uppercase">账单明细</h3>
+                             <h3 class="text-sm font-bold text-white">账单明细</h3>
                         </div>
                         <div id="transaction-list" class="space-y-3 pb-4"></div>
                     </div>
@@ -572,36 +476,33 @@
                     <!-- FIXED HEADER SECTION -->
                     <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
                         <div class="mb-6">
-                            <div class="hero-shell rounded-[1.8rem] p-5">
                             <div class="flex justify-between items-start mb-4">
                                 <div>
-                                    <div class="section-kicker mb-3">Asset Overview</div>
                                     <div class="flex items-center gap-2 text-crypto-subtext text-xs mb-1">
                                         <span>总资产折合 (CNY)</span>
                                         <i class="fa-regular fa-eye cursor-pointer hover:text-white" id="eye-icon" onclick="window.togglePrivacy()"></i>
                                     </div>
                                     <div class="flex items-baseline gap-2">
-                                        <span class="text-[2.7rem] font-display editorial-number text-white tracking-tight neon-text" id="total-asset-display">0.00</span>
+                                        <span class="text-4xl font-bold font-mono text-white tracking-tight neon-text" id="total-asset-display">0.00</span>
                                     </div>
                                 </div>
                                 
-                                <button onclick="window.fetchExchangeRate()" class="text-[10px] font-mono text-crypto-subtext bg-white/6 px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1 active:scale-95 transition-transform mt-1">
+                                <button onclick="window.fetchExchangeRate()" class="text-[10px] font-mono text-crypto-subtext bg-crypto-card px-2 py-1 rounded border border-crypto-border flex items-center gap-1 active:scale-95 transition-transform mt-1">
                                      USDT/CNY ≈ <span id="rate-display">...</span>
                                 </button>
                             </div>
 
                             <div class="grid grid-cols-2 gap-3 mb-2">
-                                <div class="bg-black/10 p-3 rounded-2xl border border-white/6 flex flex-col relative overflow-hidden backdrop-blur-sm">
-                                    <span class="section-kicker mb-2">Daily Yield</span>
-                                    <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益</span>
-                                    <span class="text-base font-bold font-mono text-crypto-up profit-glow" id="yesterday-earnings">+0.00</span>
+                                <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                    <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-up/5 rounded-bl-full -mr-2 -mt-2"></div>
+                                    <span class="text-[10px] text-crypto-subtext mb-1">昨日理财收益 (Actual)</span>
+                                    <span class="text-sm font-bold font-mono text-crypto-up profit-glow" id="yesterday-earnings">+0.00</span>
                                 </div>
-                                <div class="bg-black/10 p-3 rounded-2xl border border-white/6 flex flex-col relative overflow-hidden backdrop-blur-sm">
-                                    <span class="section-kicker mb-2">Total Yield</span>
+                                <div class="bg-crypto-card/50 p-3 rounded-xl border border-crypto-border flex flex-col relative overflow-hidden backdrop-blur-sm">
+                                    <div class="absolute top-0 right-0 w-10 h-10 bg-crypto-primary/5 rounded-bl-full -mr-2 -mt-2"></div>
                                     <span class="text-[10px] text-crypto-subtext mb-1">累计理财收益</span>
-                                    <span class="text-base font-bold font-mono text-crypto-primary" id="total-earnings">+0.00</span>
+                                    <span class="text-sm font-bold font-mono text-crypto-primary" id="total-earnings">+0.00</span>
                                 </div>
-                            </div>
                             </div>
                         </div>
                     </div>
@@ -617,7 +518,7 @@
                     <!-- SCROLLABLE GRID SECTION -->
                     <div class="flex-1 overflow-y-auto hide-scrollbar px-5 pb-24" onscroll="window.handleListScroll(this, 'assets-scroll-shadow')">
                         <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-sm font-bold text-white tracking-[0.12em] uppercase">我的钱包</h3>
+                            <h3 class="text-sm font-bold text-white">我的钱包</h3>
                         </div>
                         <div class="grid grid-cols-1 gap-3 pb-4" id="accounts-grid"></div>
                     </div>
@@ -626,7 +527,7 @@
             </div>
         </div>
 
-        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-[#101917]/88 backdrop-blur-xl border-t border-white/8 h-[92px] pb-[calc(1.2rem+env(safe-area-inset-bottom))] pt-2 px-6 flex justify-around items-end z-30 shadow-[0_-18px_40px_rgba(0,0,0,0.35)]">
+        <nav class="fixed bottom-0 w-full bg-crypto-card/95 backdrop-blur-lg border-t border-crypto-border h-[84px] pb-6 pt-2 px-6 flex justify-around items-end z-30">
             <button id="nav-bills" class="nav-btn active flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors mb-1" onclick="window.switchTab('bills')">
                 <i class="fa-solid fa-file-invoice text-xl mb-1"></i>
                 <span class="text-[10px]">账单</span>
@@ -641,7 +542,7 @@
                     onmousedown="window.handleAddStart(event)"
                     onmouseup="window.handleAddEnd(event)"
                     onmouseleave="window.handleAddCancel(event)"
-                    class="w-16 h-16 bg-crypto-primary rounded-[1.6rem] flex items-center justify-center text-black shadow-[0_12px_30px_rgba(213,176,111,0.38)] transition-all duration-300 border-[6px] border-[#0c1512] group select-none touch-none">
+                    class="w-14 h-14 bg-crypto-primary rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] transition-all duration-300 border-4 border-crypto-bg group select-none touch-none">
                     <i id="main-add-icon" class="fa-solid fa-plus text-xl transition-transform duration-300"></i>
                 </button>
             </div>
@@ -1968,19 +1869,19 @@
                     let balStr = state.privacyMode ? '****' : (['okx','alipay','wechat','bank','cash'].some(k => (acc.id+acc.name).toLowerCase().includes(k)) || acc.currency === 'CNY' ? acc.balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : parseFloat(acc.balance.toFixed(12)).toString());
 
                     const card = document.createElement('div');
-                    card.className = `relative overflow-hidden rounded-[1.8rem] p-4 h-36 shadow-lg transition-transform active:scale-[0.99] cursor-pointer text-white card-sheen w-full`; 
+                    card.className = `relative overflow-hidden rounded-2xl p-4 h-32 shadow-lg transition-transform active:scale-[0.99] cursor-pointer text-white card-sheen w-full`; 
                     card.style.backgroundColor = acc.color;
                     card.onclick = function() { window.openAccountModal(acc.id, this); };
                     const symbolIcon = getIconHtml(acc.id, acc.icon, 'white', 'symbol');
                     const watermark = `<div class="absolute -right-4 -bottom-4 w-36 h-36 opacity-30 transform -rotate-12 pointer-events-none grayscale brightness-50 flex items-center justify-center overflow-hidden">${getIconHtml(acc.id, acc.icon, 'white', 'watermark')}</div>`;
                     let balanceFontSize = balStr.length > 18 ? 'text-sm' : (balStr.length > 12 ? 'text-lg' : 'text-xl');
-                    card.innerHTML = `${watermark}<div class="relative z-10 flex flex-col h-full"><div class="flex items-center justify-between mb-5"><div class="flex items-center gap-2 min-w-0"><div class="w-8 h-8 rounded-2xl bg-white/18 flex items-center justify-center backdrop-blur-md p-1.5 shadow-sm">${symbolIcon}</div><span class="font-bold text-sm text-shadow tracking-wide text-white truncate">${acc.name}</span></div><div class="text-[10px] uppercase tracking-[0.22em] text-white/70">Wallet</div></div><div class="flex flex-col justify-end h-full mt-auto text-white"><div class="text-[10px] opacity-80 font-mono tracking-[0.28em] mb-1">BALANCE</div><div class="flex items-baseline gap-2"><div class="${balanceFontSize} font-display editorial-number tracking-tight text-shadow truncate">${balStr}</div></div><div class="text-[10px] opacity-90 font-mono mt-2 text-crypto-gold">${est}</div></div></div>`;
+                    card.innerHTML = `${watermark}<div class="relative z-10 flex flex-col h-full"><div class="flex items-center gap-2 mb-4"><div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md p-1 shadow-sm">${symbolIcon}</div><span class="font-bold text-sm text-shadow tracking-wide text-white">${acc.name}</span></div><div class="flex flex-col justify-end h-full mt-auto text-white"><div class="text-[10px] opacity-80 font-mono tracking-widest mb-0.5">BALANCE</div><div class="flex items-baseline gap-2"><div class="${balanceFontSize} font-bold font-mono tracking-wider text-shadow truncate">${balStr}</div></div><div class="text-[10px] opacity-90 font-mono mt-1 text-crypto-gold">${est}</div></div></div>`;
                     grid.appendChild(card);
                 });
                 const addBtn = document.createElement('div');
-                addBtn.className = `bg-white/[0.03] border border-dashed border-white/12 rounded-[1.8rem] p-4 h-36 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-all text-crypto-subtext hover:text-white hover:border-crypto-primary/50 w-full`;
+                addBtn.className = `bg-crypto-bg border-2 border-dashed border-crypto-border/50 rounded-2xl p-4 h-32 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-all text-crypto-subtext hover:text-white hover:border-crypto-primary/50 w-full`;
                 addBtn.onclick = () => window.openCreateAccount();
-                addBtn.innerHTML = `<div class="section-kicker mb-3">Create</div><i class="fa-solid fa-plus text-2xl mb-2"></i><span class="text-xs font-medium">添加钱包</span>`;
+                addBtn.innerHTML = `<i class="fa-solid fa-plus text-2xl mb-1"></i><span class="text-xs font-medium">Add Wallet</span>`;
                 grid.appendChild(addBtn);
             }
             if (currentTab === 'bills') {
@@ -2063,19 +1964,19 @@
                     }
 
                     const item = document.createElement('div');
-                    item.className = 'flex items-center justify-between bg-white/[0.035] p-3.5 rounded-[1.5rem] border border-white/8 transition-all duration-200 cursor-pointer hover:bg-white/[0.05] hover:border-white/12 shadow-[0_14px_30px_-24px_rgba(0,0,0,0.9)] backdrop-blur-md';
+                    item.className = 'flex items-center justify-between bg-crypto-card/30 p-3 rounded-xl border border-crypto-border/30 transition-all duration-200 cursor-pointer hover:bg-crypto-card/60 hover:border-crypto-border/60';
                     item.onclick = function() { window.handleTxClick(this, t.id); };
                     
                     item.innerHTML = `
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                            <div class="w-11 h-11 rounded-[1.1rem] flex items-center justify-center border border-white/10 shadow-sm relative overflow-hidden shrink-0" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div>
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center border border-crypto-border shadow-sm relative overflow-hidden shrink-0" style="background-color: ${iconBgColor}; color: white;">${iconDisplay}</div>
                             <div class="min-w-0 flex-1">
-                                <div class="text-sm font-bold text-white truncate">${desc}</div>
-                                <div class="text-[10px] text-crypto-subtext uppercase tracking-[0.16em]">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div>
+                                <div class="text-sm font-bold text-gray-300 truncate">${desc}</div>
+                                <div class="text-[10px] text-crypto-subtext">${t.date.getMonth()+1}/${t.date.getDate()} ${acc ? acc.name : ''}</div>
                             </div>
                         </div>
                         <div class="text-right shrink-0 ml-2">
-                            <div class="font-mono font-bold text-base ${colorClass}">${sign}${displayAmount}</div>
+                            <div class="font-mono font-bold ${colorClass}">${sign}${displayAmount}</div>
                             <div class="text-[10px] text-crypto-subtext font-mono">${displayCurrency}</div>
                         </div>
                     `;
@@ -2315,7 +2216,7 @@
             // 全部按钮
             const allBtn = document.createElement('button');
             const isAllActive = currentFilterAccountId === 'all';
-            allBtn.className = `flex-shrink-0 px-4 py-2 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap border ${isAllActive ? 'bg-crypto-primary text-black border-crypto-primary shadow-[0_10px_24px_-16px_rgba(213,176,111,0.9)]' : 'bg-white/[0.04] text-crypto-subtext border-white/10'}`;
+            allBtn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border ${isAllActive ? 'bg-white text-black border-white' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
             allBtn.innerText = '全部';
             allBtn.onclick = () => { currentFilterAccountId = 'all'; window.renderBillFilters(); renderHome(); };
             container.appendChild(allBtn);
@@ -2324,7 +2225,7 @@
             state.accounts.forEach(acc => {
                 const isActive = currentFilterAccountId === acc.id;
                 const btn = document.createElement('button');
-                btn.className = `flex-shrink-0 px-4 py-2 rounded-full text-[11px] font-bold transition-colors whitespace-nowrap border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary shadow-[0_10px_24px_-16px_rgba(213,176,111,0.9)]' : 'bg-white/[0.04] text-crypto-subtext border-white/10'}`;
+                btn.className = `flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap border flex items-center gap-1.5 ${isActive ? 'bg-crypto-primary text-black border-crypto-primary' : 'bg-crypto-card text-crypto-subtext border-crypto-border'}`;
                 btn.innerHTML = `<span>${acc.name}</span>`;
                 btn.onclick = () => { currentFilterAccountId = acc.id; window.renderBillFilters(); renderHome(); };
                 container.appendChild(btn);
