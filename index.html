@@ -335,13 +335,6 @@
             backdrop-filter: blur(12px);
         }
 
-        .top-utility-bar {
-            background: linear-gradient(180deg, rgba(18, 28, 25, 0.96), rgba(13, 21, 19, 0.96));
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 14px 36px -24px rgba(0,0,0,0.78);
-            backdrop-filter: blur(12px);
-        }
-
         .section-kicker {
             text-transform: uppercase;
             letter-spacing: 0.24em;
@@ -352,15 +345,6 @@
         .editorial-number {
             font-family: 'Fraunces', serif;
             letter-spacing: -0.04em;
-        }
-
-        .nav-btn {
-            min-width: 72px;
-            padding-bottom: 4px;
-        }
-
-        .nav-btn i {
-            margin-bottom: 6px;
         }
 
         #transaction-list > div,
@@ -496,31 +480,38 @@
         
         <div id="page-home" class="page flex flex-col h-full w-full absolute inset-0 bg-crypto-bg z-10">
             <!-- Common Header (Top Bar only) -->
-            <header class="pt-safe-top px-5 pb-2 z-20 shrink-0">
-                <div class="top-utility-bar rounded-[1.6rem] px-4 py-3">
-                    <div class="flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <div class="w-10 h-10 rounded-[1rem] bg-white/8 border border-white/10 flex items-center justify-center overflow-hidden shadow-lg shadow-black/20 shrink-0">
-                                 <img src="transparent-logosmall.png" class="w-6 h-6 object-contain" alt="Logo">
-                            </div>
-                            <div class="min-w-0">
-                                <div class="font-display editorial-number text-[1.25rem] leading-none text-white">BitLedger</div>
-                                <div class="text-[10px] tracking-[0.18em] uppercase text-crypto-subtext mt-1 truncate">Personal Ledger</div>
+            <header class="pt-safe-top px-5 pb-3 z-20 shrink-0">
+                <div class="hero-shell rounded-b-[2rem] px-4 pt-3 pb-4">
+                    <div class="flex justify-between items-start py-1">
+                        <div class="min-w-0">
+                            <div class="section-kicker mb-2">Personal Ledger</div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-9 h-9 rounded-2xl bg-white/8 border border-white/10 flex items-center justify-center overflow-hidden shadow-lg shadow-black/20">
+                                     <img src="transparent-logosmall.png" class="w-6 h-6 object-contain" alt="Logo">
+                                </div>
+                                <div>
+                                    <div class="font-display editorial-number text-[1.45rem] leading-none text-white">BitLedger</div>
+                                    <div class="text-[11px] tracking-[0.22em] uppercase text-crypto-subtext mt-1">iPhone Wallet Atelier</div>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="flex items-center gap-2 shrink-0">
-                            <button onclick="window.openAiReport()" class="h-10 px-3 rounded-full bg-white/6 border border-white/10 flex items-center justify-center active:scale-95 transition-transform">
-                                 <img src="https://raw.githubusercontent.com/mingf848-hue/iconelf/main/gemini-text%20(1).svg" 
-                                      class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(213,176,111,0.45)]" 
-                                      alt="AI Analysis">
-                            </button>
-                            
-                            <button onclick="document.getElementById('receipt-upload').click()" class="w-10 h-10 rounded-full bg-white/6 border border-white/10 text-crypto-subtext hover:text-white transition-colors active:scale-95 flex items-center justify-center">
-                                <i class="fa-solid fa-camera text-base"></i>
-                            </button>
-                            <input type="file" id="receipt-upload" accept="image/*" class="hidden" onchange="window.handleReceiptUpload(this)">
-                        </div>
+                        <div class="flex items-center gap-3 pt-1">
+                        <button onclick="window.openAiReport()" class="flex items-center justify-center active:scale-95 transition-transform">
+                             <img src="https://raw.githubusercontent.com/mingf848-hue/iconelf/main/gemini-text%20(1).svg" 
+                                  class="h-3 w-auto object-contain invert filter drop-shadow-[0_0_8px_rgba(213,176,111,0.45)]" 
+                                  alt="AI Analysis">
+                        </button>
+                        
+                        <button onclick="document.getElementById('receipt-upload').click()" class="w-10 h-10 rounded-full bg-white/6 border border-white/10 text-crypto-subtext hover:text-white transition-colors active:scale-95">
+                            <i class="fa-solid fa-camera text-lg"></i>
+                        </button>
+                        <input type="file" id="receipt-upload" accept="image/*" class="hidden" onchange="window.handleReceiptUpload(this)">
+                    </div>
+                </div>
+                    <div class="mt-4 flex items-center justify-between text-[11px] text-crypto-subtext px-1">
+                        <span>今天也把每一笔钱花得明白</span>
+                        <span class="section-kicker !text-[10px] !tracking-[0.18em]">14 Pro Max Fit</span>
                     </div>
                 </div>
             </header>
@@ -531,9 +522,9 @@
                 <!-- BILLS VIEW -->
                 <div id="view-bills" class="tab-content active">
                     <!-- FIXED HEADER SECTION -->
-                    <div class="px-5 pt-3 pb-2 bg-crypto-bg shrink-0 z-10">
-                        <div class="mb-3">
-                            <div class="flex items-center gap-2 mb-3 relative">
+                    <div class="px-5 pt-4 pb-2 bg-crypto-bg shrink-0 z-10">
+                        <div class="mb-4">
+                            <div class="flex items-center gap-2 mb-4 relative">
                                 <button id="date-range-display-btn" onclick="window.openDateRangePicker()" class="relative bg-white/5 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 active:scale-95 transition-transform hover:bg-white/8 shadow-lg shadow-black/10">
                                     <i class="fa-regular fa-calendar text-crypto-primary text-xs"></i>
                                     <span id="date-range-display" class="text-sm font-bold text-white outline-none z-10 relative">2023年10月</span>
@@ -542,13 +533,13 @@
                             </div>
 
                             <div class="grid grid-cols-2 gap-3">
-                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden min-h-[132px]">
-                                    <div class="section-kicker mb-2">Monthly Spend</div>
+                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden">
+                                    <div class="section-kicker mb-3">Monthly Spend</div>
                                     <span class="text-[11px] text-crypto-subtext mb-1">本月支出 (CNY)</span>
                                     <span class="text-[1.8rem] leading-none font-display editorial-number text-crypto-down" id="monthly-expense">0.00</span>
                                 </div>
-                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden min-h-[132px]">
-                                    <div class="section-kicker mb-2">Monthly Income</div>
+                                <div class="hero-shell p-4 rounded-[1.6rem] flex flex-col relative overflow-hidden">
+                                    <div class="section-kicker mb-3">Monthly Income</div>
                                     <span class="text-[11px] text-crypto-subtext mb-1">本月收入 (CNY)</span>
                                     <span class="text-[1.8rem] leading-none font-display editorial-number text-crypto-up" id="monthly-income">0.00</span>
                                 </div>
@@ -635,13 +626,13 @@
             </div>
         </div>
 
-        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-[#101917]/92 backdrop-blur-xl border-t border-white/8 h-[88px] pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-2 px-6 flex justify-around items-end z-30 shadow-[0_-18px_40px_rgba(0,0,0,0.35)]">
-            <button id="nav-bills" class="nav-btn active flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors mb-2" onclick="window.switchTab('bills')">
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-[#101917]/88 backdrop-blur-xl border-t border-white/8 h-[92px] pb-[calc(1.2rem+env(safe-area-inset-bottom))] pt-2 px-6 flex justify-around items-end z-30 shadow-[0_-18px_40px_rgba(0,0,0,0.35)]">
+            <button id="nav-bills" class="nav-btn active flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors mb-1" onclick="window.switchTab('bills')">
                 <i class="fa-solid fa-file-invoice text-xl mb-1"></i>
                 <span class="text-[10px]">账单</span>
             </button>
             
-            <div id="add-btn-wrapper" class="relative mb-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform origin-center"> 
+            <div id="add-btn-wrapper" class="relative mb-8 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform origin-center"> 
                 <button id="main-add-btn" 
                     oncontextmenu="return false;"
                     ontouchstart="window.handleAddStart(event)" 
@@ -650,12 +641,12 @@
                     onmousedown="window.handleAddStart(event)"
                     onmouseup="window.handleAddEnd(event)"
                     onmouseleave="window.handleAddCancel(event)"
-                    class="w-16 h-16 bg-crypto-primary rounded-[1.5rem] flex items-center justify-center text-black shadow-[0_12px_30px_rgba(213,176,111,0.38)] transition-all duration-300 border-[6px] border-[#0c1512] group select-none touch-none">
+                    class="w-16 h-16 bg-crypto-primary rounded-[1.6rem] flex items-center justify-center text-black shadow-[0_12px_30px_rgba(213,176,111,0.38)] transition-all duration-300 border-[6px] border-[#0c1512] group select-none touch-none">
                     <i id="main-add-icon" class="fa-solid fa-plus text-xl transition-transform duration-300"></i>
                 </button>
             </div>
             
-            <button id="nav-assets" class="nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors mb-2" onclick="window.switchTab('assets')">
+            <button id="nav-assets" class="nav-btn flex flex-col items-center justify-center text-crypto-subtext hover:text-white transition-colors mb-1" onclick="window.switchTab('assets')">
                  <i class="fa-solid fa-wallet text-xl mb-1"></i>
                 <span class="text-[10px]">资产</span>
             </button>
