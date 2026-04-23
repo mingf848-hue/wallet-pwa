@@ -1,27 +1,9 @@
 {
-  "name": "wallet-pwa",
-  "private": true,
-  "version": "2.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.app.json && vite build"
-  },
+  "name": "bitledger-webhook",
+  "version": "1.0.0",
   "dependencies": {
-    "@tailwindcss/vite": "^4.2.4",
     "firebase": "^11.0.2",
     "firebase-admin": "^12.0.0",
-    "lucide-react": "^0.511.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "rss-parser": "^3.13.0",
-    "tailwindcss": "^4.2.4"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.10",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.2",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "rss-parser": "^3.13.0"
   }
 }
