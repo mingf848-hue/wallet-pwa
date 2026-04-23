@@ -26,6 +26,8 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -59,16 +61,19 @@ button {
   width: 100%;
   max-width: 430px;
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 .phone-screen {
   position: relative;
   min-height: 100vh;
   padding-bottom: calc(118px + env(safe-area-inset-bottom));
+  overflow-x: clip;
 }
 
 .page-scroll {
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 .topbar {
@@ -97,6 +102,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .status-time {
@@ -144,12 +150,15 @@ button {
 
 .brand-row {
   margin-top: 22px;
+  gap: 12px;
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .brand-mark {
@@ -173,6 +182,9 @@ button {
   font-size: 20px;
   font-weight: 800;
   font-style: italic;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .brand-text em {
@@ -183,6 +195,7 @@ button {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex: 0 0 auto;
 }
 
 .icon-button,
@@ -193,6 +206,9 @@ button {
   align-items: center;
   justify-content: center;
   color: #121827;
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
 }
 
 .avatar-button {
@@ -227,6 +243,8 @@ button {
 
 .page {
   padding: 0 22px 20px;
+  width: 100%;
+  overflow-x: clip;
 }
 
 .month-pill,
@@ -254,6 +272,7 @@ button {
   border-radius: 15px;
   color: #1f2742;
   font-weight: 700;
+  min-width: 0;
 }
 
 .hero-grid,
@@ -285,6 +304,7 @@ button {
   border-radius: 24px;
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.72);
+  min-width: 0;
 }
 
 .balance-card {
@@ -298,6 +318,7 @@ button {
 .metric-block {
   padding: 18px;
   min-height: 114px;
+  min-width: 0;
 }
 
 .metric-block + .metric-block {
@@ -314,6 +335,7 @@ button {
 .group-total,
 .ghost-link {
   color: var(--muted);
+  min-width: 0;
 }
 
 .balance-number,
@@ -372,6 +394,8 @@ button {
   margin-top: 10px;
   font-size: 26px;
   font-weight: 800;
+  line-height: 1.05;
+  min-width: 0;
 }
 
 .metric-icon {
@@ -398,12 +422,14 @@ button {
 .card {
   border-radius: 24px;
   padding: 18px;
+  min-width: 0;
 }
 
 .section-head {
   margin: 16px 0 12px;
   font-size: 15px;
   font-weight: 700;
+  gap: 10px;
 }
 
 .section-head.compact {
@@ -463,6 +489,8 @@ button {
   overflow-x: auto;
   padding: 2px 0;
   scrollbar-width: none;
+  min-width: 0;
+  overscroll-behavior-x: contain;
 }
 
 .chip-row::-webkit-scrollbar {
@@ -476,6 +504,7 @@ button {
   white-space: nowrap;
   color: #243050;
   font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .filter-chip.active {
@@ -487,11 +516,13 @@ button {
 .list-card {
   border-radius: 26px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .transaction-row {
   gap: 12px;
   padding: 16px 18px;
+  min-width: 0;
 }
 
 .transaction-button,
@@ -510,6 +541,7 @@ button {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .brand-badge {
@@ -534,6 +566,10 @@ button {
 .account-name {
   font-size: 15px;
   font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transaction-meta {
@@ -543,6 +579,7 @@ button {
   margin-top: 4px;
   font-size: 13px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .tag-chip {
@@ -566,6 +603,8 @@ button {
 .transaction-amount,
 .account-value {
   text-align: right;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .transaction-amount strong,
@@ -585,6 +624,8 @@ button {
   grid-template-columns: 122px 1fr 48px;
   gap: 10px;
   margin-top: 8px;
+  align-items: stretch;
+  min-width: 0;
 }
 
 .search-box {
@@ -595,10 +636,12 @@ button {
   border-radius: 16px;
   padding: 0 14px;
   color: var(--muted);
+  min-width: 0;
 }
 
 .search-box input {
   width: 100%;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -642,12 +685,14 @@ button {
   border-radius: 24px;
   padding: 12px;
   gap: 12px;
+  min-width: 0;
 }
 
 .metric-strip {
   flex: 1;
   gap: 12px;
   padding: 10px 8px;
+  min-width: 0;
 }
 
 .account-row {
@@ -664,11 +709,20 @@ button {
 
 .group-title {
   gap: 8px;
+  min-width: 0;
 }
 
 .group-title span {
   color: var(--muted);
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.group-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-total {
@@ -692,6 +746,7 @@ button {
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.7);
   width: 144px;
+  min-width: 0;
 }
 
 .small-metric-card {
@@ -794,6 +849,7 @@ button {
 .asset-overview {
   gap: 18px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .asset-chart-panel {
@@ -865,6 +921,7 @@ button {
 
 .account-stack {
   margin-top: 8px;
+  min-width: 0;
 }
 
 .see-all-link {
@@ -889,6 +946,7 @@ button {
   backdrop-filter: blur(20px);
   border-top: 1px solid rgba(130, 154, 205, 0.16);
   box-shadow: 0 -10px 26px rgba(36, 74, 140, 0.08);
+  max-width: 430px;
 }
 
 .nav-item {
@@ -897,6 +955,7 @@ button {
   gap: 4px;
   color: #222c48;
   font-size: 13px;
+  min-height: 44px;
 }
 
 .nav-item.active {
@@ -945,6 +1004,7 @@ button {
   box-shadow: 0 -24px 50px rgba(34, 69, 132, 0.16);
   max-height: min(88vh, 860px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sheet-handle {
@@ -1101,6 +1161,7 @@ button {
   padding: 14px 0;
   border-bottom: 1px solid var(--line);
   font-size: 14px;
+  min-width: 0;
 }
 
 .detail-row span {
@@ -1110,17 +1171,107 @@ button {
 .detail-row strong {
   text-align: right;
   color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .color-input-row {
   display: grid;
   grid-template-columns: 56px 1fr;
   gap: 10px;
+  min-width: 0;
 }
 
 .color-input-row input[type="color"] {
   min-height: 46px;
   padding: 4px;
+}
+
+@media (max-width: 430px) {
+  .topbar {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+    font-size: 27px;
+  }
+
+  .brand-text {
+    font-size: 18px;
+  }
+
+  .toolbar-actions {
+    gap: 10px;
+  }
+
+  .toolbar-grid {
+    grid-template-columns: 104px minmax(0, 1fr) 44px;
+    gap: 8px;
+  }
+
+  .month-pill,
+  .search-box,
+  .square-action {
+    height: 44px;
+  }
+
+  .month-pill {
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .search-box {
+    padding: 0 12px;
+  }
+
+  .search-box input {
+    font-size: 16px;
+  }
+
+  .filter-chip {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+
+  .dual-summary-card {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .metric-strip {
+    gap: 10px;
+    padding: 8px 6px;
+  }
+
+  .metric-title {
+    font-size: 13px;
+  }
+
+  .metric-value {
+    font-size: 19px;
+  }
+
+  .metric-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+    border-radius: 16px;
+    flex: 0 0 auto;
+  }
+
+  .group-total {
+    font-size: 12px;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 390px) {
@@ -1136,6 +1287,23 @@ button {
 
   .toolbar-grid {
     grid-template-columns: 1fr;
+  }
+
+  .brand-text {
+    font-size: 16px;
+  }
+
+  .metric-value {
+    font-size: 18px;
+  }
+
+  .transaction-row {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .group-title {
+    gap: 6px;
   }
 
   .modal-grid {
