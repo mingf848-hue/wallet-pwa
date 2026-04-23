@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  color: #f8fbff;
+  background: #090f21;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+html,
+body {
+  background:
+    radial-gradient(circle at top, rgba(16, 27, 51, 0.85) 0%, rgba(9, 15, 33, 1) 48%),
+    #090f21;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
